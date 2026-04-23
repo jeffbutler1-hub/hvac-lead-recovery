@@ -19,7 +19,7 @@ app.post('/missed-call', async (req, res) => {
   const callerNumber = req.body.From;
   console.log('Missed call from:', callerNumber);
 
-  const toNumber = process.env.MY_PERSONAL_NUMBER;
+  const toNumber = '+19183780537';
 
   await client.messages.create({
     body: "Hi! Sorry we missed your call. We'd love to help — can I grab your name and what's going on with your system?",
