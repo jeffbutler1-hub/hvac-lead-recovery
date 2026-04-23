@@ -50,7 +50,7 @@ async function chat(phoneNumber, userMessage) {
 
   // Call Claude
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-5',
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
     messages: conversations[phoneNumber]
