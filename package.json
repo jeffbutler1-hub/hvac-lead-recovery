@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/jeffbutler1-hub/hvac-lead-recovery#readme",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "twilio": "^6.0.0"
