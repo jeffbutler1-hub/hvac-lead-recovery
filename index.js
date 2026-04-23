@@ -1,11 +1,13 @@
-require('dotenv').config();
-const express = require('express');
-const twilio = require('twilio');
-const Anthropic = require('@anthropic-ai/sdk');
+require("dotenv").config();
+const express = require("express");
+const twilio = require("twilio");
+const Anthropic = require("@anthropic-ai/sdk");
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
+
+const MessagingResponse = twilio.twiml.MessagingResponse;
 
 const twilioClient = twilio(
   process.env.TWILIO_ACCOUNT_SID,
@@ -16,115 +18,161 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 });
 
-// Stores conversation history per phone number
 const conversations = {};
+const activatedUsers = {};
 
-const SYSTEM_PROMPT = `You are a friendly intake assistant for an HVAC service company. 
-A customer just missed a call with the business. Your job is to collect the following 
-information one question at a time in a conversational, friendly way appropriate for SMS:
+const OWNER_NUMBER = process.env.OWNER_PHONE_NUMBER;
 
-1. Their first and last name
-2. Their service address
-3. A description of their HVAC issue
-4. The urgency (emergency, within 24 hours, within a week, just planning ahead)
-5. Their preferred callback time
+const SYSTEM_PROMPT = `
+You are a friendly HVAC intake assistant via SMS.
 
-Important rules:
-- Ask only ONE question at a time
-- Keep messages short and friendly — this is SMS
-- Once you have ALL 5 pieces of information, respond ONLY with a JSON object like this:
-{"name": "John Smith", "address": "123 Main St, Austin TX", "issue": "AC not cooling", "urgency": "emergency", "callback": "tomorrow morning", "complete": true}
-- Do not include any text outside the JSON when you are done`;
+Collect these 5 items one at a time:
+
+1. Full name
+2. Service address
+3. HVAC issue
+4. Urgency (emergency / 24 hours / week / planning)
+5. Preferred callback time
+
+Rules:
+- Ask ONE short question at a time
+- Be warm and concise
+- SMS tone
+- Once complete, output ONLY valid JSON:
+
+{
+"name":"John Smith",
+"address":"123 Main St Austin TX",
+"issue":"AC not cooling",
+"urgency":"emergency",
+"callback":"today after 5",
+"complete": true
+}
+`;
 
 async function chat(phoneNumber, userMessage) {
-  // Initialize conversation if first message
   if (!conversations[phoneNumber]) {
     conversations[phoneNumber] = [];
   }
 
-  // Add user message to history
   conversations[phoneNumber].push({
-    role: 'user',
+    role: "user",
     content: userMessage
   });
 
-  // Call Claude
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 1024,
+    model: "claude-sonnet-4-5",
+    max_tokens: 500,
     system: SYSTEM_PROMPT,
     messages: conversations[phoneNumber]
   });
 
-  const assistantMessage = response.content[0].text;
+  const text = response.content[0].text;
 
-  // Add Claude's response to history
   conversations[phoneNumber].push({
-    role: 'assistant',
-    content: assistantMessage
+    role: "assistant",
+    content: text
   });
 
-  return assistantMessage;
+  return text;
 }
 
-app.get('/', (req, res) => {
-  res.send('HVAC lead recovery is running');
+app.get("/", (req, res) => {
+  res.send("Lead recovery app is running");
 });
 
-app.post('/missed-call', async (req, res) => {
+app.post("/missed-call", async (req, res) => {
   const callerNumber = req.body.From;
-  console.log('Missed call from:', callerNumber);
 
-  const toNumber = '+19183780537';
-
-  await twilioClient.messages.create({
-    body: "Hi! Sorry we missed your call. Reply YES to connect with our virtual assistant and we'll get your info to the right person fast. Reply STOP at any time to opt out.",
-    from: process.env.TWILIO_PHONE_NUMBER,
-    to: toNumber
-  });
-
-  res.type('text/xml');
-  res.send(`
-    <Response>
-      <Say>Please leave a message after the tone.</Say>
-      <Record maxLength="60" />
-    </Response>
-  `);
-});
-
-app.post('/incoming-sms', async (req, res) => {
-  const from = req.body.From;
-  const body = req.body.Body.trim();
-  console.log(`Reply from ${from}: ${body}`);
-
-  let replyText;
+  console.log("Missed call from:", callerNumber);
 
   try {
-    const claudeResponse = await chat(from, body);
-    console.log('Claude response:', claudeResponse);
-
-    // Check if Claude is done and returned JSON
-    if (claudeResponse.includes('"complete": true')) {
-      const lead = JSON.parse(claudeResponse);
-      console.log('Lead captured:', lead);
-      // Airtable and owner notification coming next
-      replyText = `Thanks ${lead.name}! We've got your info and someone will call you back at your preferred time. Reply STOP at any time to opt out.`;
-      delete conversations[from];
-    } else {
-      replyText = claudeResponse;
-    }
+    await twilioClient.messages.create({
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: callerNumber,
+      body:
+        "Hi! Sorry we missed your call. Reply YES to connect with our assistant and we’ll get your info to the team quickly. Reply STOP to opt out."
+    });
   } catch (err) {
-    console.error('Error:', err);
-    replyText = "Sorry, something went wrong. Please call us back directly.";
+    console.error(err);
   }
 
-  res.type('text/xml');
+  res.type("text/xml");
   res.send(`
-    <Response>
-      <Message>${replyText}</Message>
-    </Response>
-  `);
+<Response>
+<Say>Please leave a message after the tone.</Say>
+<Record maxLength="60"/>
+</Response>
+`);
+});
+
+app.post("/incoming-sms", async (req, res) => {
+  const from = req.body.From;
+  const body = req.body.Body.trim();
+
+  const twiml = new MessagingResponse();
+
+  try {
+    // Require YES first
+    if (!activatedUsers[from]) {
+      if (body.toUpperCase() === "YES") {
+        activatedUsers[from] = true;
+        twiml.message(
+          "Thanks! What is your full name?"
+        );
+      } else {
+        twiml.message(
+          "Reply YES if you'd like help with your missed call request. Reply STOP to opt out."
+        );
+      }
+
+      return res.type("text/xml").send(twiml.toString());
+    }
+
+    const aiReply = await chat(from, body);
+
+    if (aiReply.includes('"complete": true')) {
+      const lead = JSON.parse(aiReply);
+
+      console.log("Lead captured:", lead);
+
+      // notify owner
+      await twilioClient.messages.create({
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: OWNER_NUMBER,
+        body:
+          `NEW LEAD\n` +
+          `${lead.name}\n` +
+          `${lead.address}\n` +
+          `${lead.issue}\n` +
+          `${lead.urgency}\n` +
+          `${lead.callback}`
+      });
+
+      twiml.message(
+        `Thanks ${lead.name}! We’ve got your info and someone will contact you soon.`
+      );
+
+      delete conversations[from];
+      delete activatedUsers[from];
+
+    } else {
+      twiml.message(aiReply);
+    }
+
+  } catch (err) {
+    console.error(err);
+    twiml.message(
+      "Sorry, something went wrong. Please call us back shortly."
+    );
+  }
+
+  res.type("text/xml");
+  res.send(twiml.toString());
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+app.listen(PORT, () =>
+  console.log(`Server running on port ${PORT}`)
+);
