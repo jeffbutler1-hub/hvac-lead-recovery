@@ -50,22 +50,29 @@ def incoming_call():
 # --------------------------
 @app.route("/handle-recording", methods=["POST"])
 def handle_recording():
-    print("\n--- RECORDING RECEIVED ---")
+    print("\n--- RECORDING CALLBACK ---")
+
+    recording_status = request.form.get("RecordingStatus")
+
+    # Only process when recording is completed
+    if recording_status != "completed":
+        print("Skipping - recording not complete yet")
+        return "OK", 200
 
     try:
         recording_url = request.form.get("RecordingUrl")
 
         if not recording_url:
-            print("❌ No recording URL")
+            print("No recording URL")
             return "OK", 200
 
         recording_url += ".wav"
-        print("🎧 Recording URL:", recording_url)
+        print("Recording URL:", recording_url)
 
         file_path = download_audio(recording_url)
 
         transcript = transcribe_audio(file_path)
-        print("📝 Transcript:", transcript)
+        print("Transcript:", transcript)
 
         structured_text = extract_with_openai(transcript)
         structured = parse_json(structured_text)
@@ -73,18 +80,13 @@ def handle_recording():
         print("\n🚨 NEW LEAD 🚨")
         print(structured)
 
-        # Send SMS
-        send_sms_alert(structured)
-
-        # Send to Google Sheets
         send_to_sheets(structured)
 
         return "OK", 200
 
     except Exception as e:
-        print("❌ ERROR in handle_recording:", str(e))
+        print("ERROR:", e)
         return "OK", 200
-
 # --------------------------
 # Download audio
 # --------------------------
