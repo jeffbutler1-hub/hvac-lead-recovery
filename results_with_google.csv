@@ -1,0 +1,27 @@
+Domain,Phone,FormCapability,FormConfidence,FormURL,TextCapability,TextVendor,TextConfidence,BookingCapability,BookingVendor,BookingConfidence,GoogleRating,GoogleReviewCount
+davistempcontrol.com,True,True,High,https://davistempcontrol.com/contact-us,True,Intercom,High,True,HousecallPro,Medium,5.0,111.0
+atomic-ac.com,True,False,,,False,,,False,,,5.0,362.0
+bestcoldusa.com,True,True,High,https://bestcoldusa.com,False,,,False,,,5.0,4.0
+keeping-texas-cool.com,True,True,High,https://keeping-texas-cool.com/contact-us,True,HousecallPro Chat,High,True,HousecallPro,Medium,5.0,797.0
+servicewizardac.com,True,True,High,https://servicewizardac.com/schedule-service,True,Podium,High,True,ServiceTitan,Medium,4.9,1932.0
+bashvac.univer.se,True,False,,,False,,,False,,,4.8,17.0
+preferredclimatesolutions.com,True,True,High,https://preferredclimatesolutions.com,False,,,False,,,4.3,12.0
+airtexasmechanical.com,True,True,High,https://airtexasmechanical.com/contact-us,False,,,False,,,4.3,3.0
+rwbairservices.com,True,True,High,https://rwbairservices.com/contact-us,False,,,False,,,5.0,15.0
+facebook.com,False,True,High,https://facebook.com,True,Tawk,High,True,Calendly,Medium,5.0,7.0
+thumbtack.com,False,True,High,https://thumbtack.com/contact,False,,,False,,,5.0,1.0
+gregsheatingandairtx.com,False,False,,,False,,,False,,,4.9,218.0
+tav-airservice.com,True,False,,,False,,,False,,,5.0,36.0
+southaustinheatandair.com,True,True,High,https://southaustinheatandair.com,False,,,False,,,,
+buntenac.com,True,True,High,https://buntenac.com,False,,,False,,,,
+airzoneservices.com,True,True,High,https://airzoneservices.com,False,,,False,,,4.8,42.0
+altruisticac.com,True,False,,,True,ServiceTitan Chat,High,True,ServiceTitan,Medium,4.9,761.0
+jbheatingandair.com,True,True,Medium,https://jbheatingandair.com/contact,False,,,False,,,,
+bartoncreekac.com,True,True,High,https://bartoncreekac.com,True,Podium,High,True,Unknown,Low,5.0,207.0
+citywideaustin.com,True,True,High,https://citywideaustin.com/contact,False,,,False,,,4.9,65.0
+idealaircare.com,True,True,High,https://idealaircare.com/contact,True,Podium,High,False,,,4.8,83.0
+accompanyaustin.com,False,False,,,False,,,False,,,4.6,41.0
+fireandicetx.com,True,False,,,False,,,False,,,3.1,59.0
+chucksac.com,True,True,High,https://chucksac.com,True,Drift,High,True,HousecallPro,Medium,5.0,557.0
+hillcountryacsolutions.com,True,True,High,https://hillcountryacsolutions.com,False,,,False,,,4.4,56.0
+lonestarcomfortsolutions.com ,True,True,High,https://lonestarcomfortsolutions.com ,False,,,True,Detected,High,4.3,6.0
