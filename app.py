@@ -40,7 +40,7 @@ def incoming_call():
     response = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say>Please leave your name, number, and what you need help with after the beep.</Say>
-    <Record maxLength="120" action="/handle-recording"/>
+    <Record maxLength="120" action="/handle-recording" recordingStatusCallback="/handle-recording" recordingStatusCallbackMethod="POST"/>
 </Response>"""
 
     return Response(response, mimetype="text/xml")
