@@ -1,5 +1,4 @@
 from flask import Flask, request, Response
-from flask_cors import CORS
 import requests
 import os
 import json
@@ -13,18 +12,19 @@ from twilio.rest import Client
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # ← prevents 403 issues
 
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 MY_PERSONAL_NUMBER = os.getenv("MY_PERSONAL_NUMBER")
+
 GSHEET_WEBHOOK = os.getenv("GSHEET_WEBHOOK")
 
 # --------------------------
-# HEALTH CHECK (important for debugging)
+# Health check
 # --------------------------
 @app.route("/", methods=["GET"])
 def home():
@@ -35,9 +35,7 @@ def home():
 # --------------------------
 @app.route("/incoming-call", methods=["POST"])
 def incoming_call():
-    print("\n--- INCOMING CALL HIT ---")
-    print("Headers:", request.headers)
-    print("Form:", request.form)
+    print("\n--- INCOMING CALL ---")
 
     response = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -52,22 +50,22 @@ def incoming_call():
 # --------------------------
 @app.route("/handle-recording", methods=["POST"])
 def handle_recording():
-    print("\n--- HANDLE RECORDING HIT ---")
+    print("\n--- RECORDING RECEIVED ---")
 
     try:
         recording_url = request.form.get("RecordingUrl")
 
         if not recording_url:
-            print("❌ No recording URL found")
-            return "No recording", 200
+            print("❌ No recording URL")
+            return "OK", 200
 
         recording_url += ".wav"
-        print("Recording URL:", recording_url)
+        print("🎧 Recording URL:", recording_url)
 
         file_path = download_audio(recording_url)
 
         transcript = transcribe_audio(file_path)
-        print("Transcript:", transcript)
+        print("📝 Transcript:", transcript)
 
         structured_text = extract_with_openai(transcript)
         structured = parse_json(structured_text)
@@ -75,20 +73,24 @@ def handle_recording():
         print("\n🚨 NEW LEAD 🚨")
         print(structured)
 
-        # send_sms_alert(structured)
+        # Send SMS
+        send_sms_alert(structured)
+
+        # Send to Google Sheets
         send_to_sheets(structured)
 
         return "OK", 200
 
     except Exception as e:
-        print("❌ ERROR:", e)
-        return "Error", 200  # return 200 so Twilio doesn’t retry endlessly
+        print("❌ ERROR in handle_recording:", str(e))
+        return "OK", 200
 
 # --------------------------
 # Download audio
 # --------------------------
 def download_audio(url):
-    response = requests.get(url, auth=(TWILIO_SID, TWILIO_AUTH))
+    print("⬇️ Downloading audio...")
+    response = requests.get(url, auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN))
 
     file_path = "temp.wav"
     with open(file_path, "wb") as f:
@@ -100,6 +102,7 @@ def download_audio(url):
 # Transcribe
 # --------------------------
 def transcribe_audio(file_path):
+    print("🧠 Transcribing audio...")
     with open(file_path, "rb") as audio:
         transcript = openai_client.audio.transcriptions.create(
             model="gpt-4o-transcribe",
@@ -111,6 +114,8 @@ def transcribe_audio(file_path):
 # Extract structured data
 # --------------------------
 def extract_with_openai(text):
+    print("🧩 Extracting structured data...")
+
     prompt = f"""
 Extract the following fields from the transcript.
 
@@ -140,8 +145,8 @@ Transcript:
 def parse_json(output):
     try:
         return json.loads(output)
-    except:
-        print("⚠️ JSON parse failed")
+    except Exception as e:
+        print("❌ JSON parse failed:", str(e))
         return {
             "name": "unknown",
             "phone": "unknown",
@@ -150,11 +155,13 @@ def parse_json(output):
         }
 
 # --------------------------
-# Send SMS (demo-safe)
+# Send SMS
 # --------------------------
 def send_sms_alert(data):
     try:
-        client = Client(TWILIO_SID, TWILIO_AUTH)
+        print("📲 Attempting to send SMS...")
+
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
         body = f"""🚨 New Lead 🚨
 Name: {data['name']}
@@ -162,18 +169,16 @@ Phone: {data['phone']}
 Service: {data['service']}
 Urgency: {data['urgency']}"""
 
-        print("Sending SMS:", body)
-
         message = client.messages.create(
             body=body,
-            from_=MY_PERSONAL_NUMBER,
+            from_=TWILIO_PHONE_NUMBER,
             to=MY_PERSONAL_NUMBER
         )
 
-        print("SMS sent:", message.sid)
+        print("✅ SMS sent:", message.sid)
 
     except Exception as e:
-        print("❌ SMS error:", e)
+        print("❌ SMS FAILED:", str(e))
 
 # --------------------------
 # Send to Google Sheets
@@ -181,10 +186,11 @@ Urgency: {data['urgency']}"""
 def send_to_sheets(data):
     if GSHEET_WEBHOOK:
         try:
+            print("📊 Sending to Google Sheets...")
             requests.post(GSHEET_WEBHOOK, json=data)
-            print("Sent to Google Sheets")
+            print("✅ Sent to Google Sheets")
         except Exception as e:
-            print("❌ Sheets error:", e)
+            print("❌ Sheets error:", str(e))
 
 # --------------------------
 # Run app
