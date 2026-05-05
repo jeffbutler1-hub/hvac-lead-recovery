@@ -22,6 +22,9 @@ MY_PERSONAL_NUMBER = os.getenv("MY_PERSONAL_NUMBER")
 
 GSHEET_WEBHOOK = os.getenv("GSHEET_WEBHOOK")
 
+# Store conversation memory (simple in-memory)
+conversation_memory = {}
+
 # --------------------------
 # Health check
 # --------------------------
@@ -30,7 +33,7 @@ def home():
     return "App is running!"
 
 # --------------------------
-# ENTRY: Incoming call
+# Incoming call
 # --------------------------
 @app.route("/incoming-call", methods=["POST"])
 def incoming_call():
@@ -38,9 +41,9 @@ def incoming_call():
 
     response = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say>Press 1 to speak with our AI assistant, or stay on the line to leave a voicemail.</Say>
+    <Say voice="Polly.Joanna">Press 1 to speak with our assistant, or stay on the line to leave a message.</Say>
     <Gather numDigits="1" action="/route-call" timeout="5"/>
-    <Say>No input received. Please leave a message after the beep.</Say>
+    <Say voice="Polly.Joanna">No input received. Please leave a message after the beep.</Say>
     <Record maxLength="120"
         action="/handle-recording"
         recordingStatusCallback="/handle-recording"
@@ -50,27 +53,23 @@ def incoming_call():
     return Response(response, mimetype="text/xml")
 
 # --------------------------
-# Route call (AI vs voicemail)
+# Route call
 # --------------------------
 @app.route("/route-call", methods=["POST"])
 def route_call():
     digit = request.form.get("Digits")
 
     if digit == "1":
-        print("Routing to AI assistant")
-
         return Response("""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say>Hi, what’s going on with your HVAC system?</Say>
-    <Record maxLength="8" action="/ai-step-1"/>
+    <Say voice="Polly.Joanna">Hi, what’s going on with your HVAC system?</Say>
+    <Record maxLength="4" timeout="2" action="/ai-step-1"/>
 </Response>""", mimetype="text/xml")
 
     else:
-        print("Routing to voicemail")
-
         return Response("""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say>Please leave a message after the beep.</Say>
+    <Say voice="Polly.Joanna">Please leave a message after the beep.</Say>
     <Record maxLength="120"
         action="/handle-recording"
         recordingStatusCallback="/handle-recording"
@@ -85,43 +84,52 @@ def ai_step_1():
     print("\n--- AI STEP 1 ---")
 
     recording_url = request.form.get("RecordingUrl")
+    call_sid = request.form.get("CallSid")
 
     if not recording_url:
         return "OK", 200
 
     recording_url += ".wav"
-
     transcript = transcribe_from_url(recording_url)
-    print("AI Step 1 transcript:", transcript)
+
+    print("Step 1 transcript:", transcript)
+
+    # Store first turn
+    conversation_memory[call_sid] = transcript
 
     reply = ai_followup(transcript)
 
-    response = f"""<?xml version="1.0" encoding="UTF-8"?>
+    return Response(f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say>{reply}</Say>
-    <Record maxLength="8" action="/ai-step-2"/>
-</Response>"""
-
-    return Response(response, mimetype="text/xml")
+    <Say voice="Polly.Joanna">{reply}</Say>
+    <Record maxLength="4" timeout="2" action="/ai-step-2"/>
+</Response>""", mimetype="text/xml")
 
 # --------------------------
-# AI STEP 2 (FINALIZE)
+# AI STEP 2
 # --------------------------
 @app.route("/ai-step-2", methods=["POST"])
 def ai_step_2():
     print("\n--- AI STEP 2 ---")
 
     recording_url = request.form.get("RecordingUrl")
+    call_sid = request.form.get("CallSid")
 
     if not recording_url:
         return "OK", 200
 
     recording_url += ".wav"
-
     transcript = transcribe_from_url(recording_url)
-    print("AI Step 2 transcript:", transcript)
 
-    structured = extract_with_openai(transcript)
+    print("Step 2 transcript:", transcript)
+
+    # Combine both turns
+    first_turn = conversation_memory.get(call_sid, "")
+    combined_text = first_turn + " " + transcript
+
+    print("Combined:", combined_text)
+
+    structured = extract_with_openai(combined_text)
     structured = parse_json(structured)
 
     print("\n🚨 AI LEAD 🚨")
@@ -130,13 +138,17 @@ def ai_step_2():
     send_to_sheets(structured)
     send_sms_alert(structured)
 
+    # cleanup memory
+    if call_sid in conversation_memory:
+        del conversation_memory[call_sid]
+
     return Response("""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say>Thanks, we’ve got your request and will follow up shortly.</Say>
+    <Say voice="Polly.Joanna">Got it. We’ll have someone follow up shortly.</Say>
 </Response>""", mimetype="text/xml")
 
 # --------------------------
-# VOICEMAIL FLOW (UNCHANGED CORE LOGIC)
+# VOICEMAIL FLOW (UNCHANGED)
 # --------------------------
 @app.route("/handle-recording", methods=["POST"])
 def handle_recording():
@@ -144,23 +156,20 @@ def handle_recording():
 
     recording_status = request.form.get("RecordingStatus")
 
-    # Prevent duplicates
     if recording_status != "completed":
-        print("Skipping - recording not complete yet")
+        print("Skipping - not complete")
         return "OK", 200
 
     try:
         recording_url = request.form.get("RecordingUrl")
 
         if not recording_url:
-            print("No recording URL")
             return "OK", 200
 
         recording_url += ".wav"
-        print("Recording URL:", recording_url)
-
         transcript = transcribe_from_url(recording_url)
-        print("Transcript:", transcript)
+
+        print("Voicemail transcript:", transcript)
 
         structured = extract_with_openai(transcript)
         structured = parse_json(structured)
@@ -181,44 +190,48 @@ def handle_recording():
 # Helpers
 # --------------------------
 def transcribe_from_url(url):
-    print("⬇️ Downloading audio...")
     response = requests.get(url, auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN))
 
-    file_path = "temp.wav"
-    with open(file_path, "wb") as f:
+    with open("temp.wav", "wb") as f:
         f.write(response.content)
 
-    print("🧠 Transcribing...")
-    with open(file_path, "rb") as audio:
-        transcript = openai_client.audio.transcriptions.create(
+    with open("temp.wav", "rb") as audio:
+        t = openai_client.audio.transcriptions.create(
             model="gpt-4o-transcribe",
             file=audio
         )
 
-    return transcript.text
+    return t.text
 
 def ai_followup(text):
     prompt = f"""
-You are an HVAC receptionist.
+You are a friendly HVAC receptionist speaking on the phone.
 
-User said:
+The caller said:
 "{text}"
 
-Ask a short follow-up question to collect:
-- name
-- phone number
+Respond naturally in ONE short sentence.
 
-Keep it conversational and brief.
+Tone:
+- conversational
+- human
+- not robotic
+
+Goal:
+acknowledge their issue and ask for name + phone
+
+Example:
+"Got it—that sounds frustrating. Can I grab your name and number so we can get someone out to you?"
+
+Now respond:
 """
-    response = openai_client.chat.completions.create(
+    res = openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.choices[0].message.content.strip()
+    return res.choices[0].message.content.strip()
 
 def extract_with_openai(text):
-    print("🧩 Extracting structured data...")
-
     prompt = f"""
 Extract:
 - name
@@ -231,17 +244,16 @@ Return ONLY valid JSON.
 Transcript:
 {text}
 """
-    response = openai_client.chat.completions.create(
+    res = openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.choices[0].message.content
+    return res.choices[0].message.content
 
 def parse_json(output):
     try:
         return json.loads(output)
-    except Exception as e:
-        print("JSON parse failed:", str(e))
+    except:
         return {
             "name": "unknown",
             "phone": "unknown",
@@ -251,31 +263,21 @@ def parse_json(output):
 
 def send_sms_alert(data):
     try:
-        print("📲 Attempting SMS...")
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-
-        message = client.messages.create(
+        client.messages.create(
             body=f"New lead: {data}",
             from_=TWILIO_PHONE_NUMBER,
             to=MY_PERSONAL_NUMBER
         )
-
-        print("SMS sent:", message.sid)
-
-    except Exception as e:
-        print("SMS failed:", str(e))
+    except:
+        pass
 
 def send_to_sheets(data):
     if GSHEET_WEBHOOK:
-        try:
-            print("📊 Sending to Google Sheets...")
-            requests.post(GSHEET_WEBHOOK, json=data)
-            print("✅ Sent to Google Sheets")
-        except Exception as e:
-            print("Sheets error:", str(e))
+        requests.post(GSHEET_WEBHOOK, json=data)
 
 # --------------------------
-# Run app
+# Run
 # --------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
