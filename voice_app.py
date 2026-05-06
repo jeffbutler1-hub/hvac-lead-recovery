@@ -49,10 +49,6 @@ async def incoming_call():
 @app.websocket("/ws")
 async def websocket_test(websocket: WebSocket):
 
-    global audio_chunks
-
-    audio_chunks = []
-
     print("⚡ ENTERED WEBSOCKET FUNCTION")
 
     await websocket.accept()
@@ -65,39 +61,9 @@ async def websocket_test(websocket: WebSocket):
 
             message = await websocket.receive()
 
-            if message["type"] == "websocket.disconnect":
-                print("❌ Websocket disconnected")
-                break
+            print("📦 RECEIVED MESSAGE")
 
-            text_data = message.get("text")
-
-            if not text_data:
-                continue
-
-            data = json.loads(text_data)
-
-            event = data.get("event")
-
-            if event == "start":
-
-                print("▶️ Stream started")
-
-            elif event == "media":
-
-                payload = data["media"]["payload"]
-
-                chunk = base64.b64decode(payload)
-
-                # SAVE RAW μ-law CHUNKS
-                audio_chunks.append(chunk)
-
-            elif event == "stop":
-
-                print("⏹ Stream stopped")
-
-                print(f"🎤 Saved {len(audio_chunks)} chunks")
-
-                break
+            print(message.keys())
 
     except Exception as e:
 
