@@ -11,6 +11,7 @@ import os
 print("🚀 voice_app loaded")
 
 app = FastAPI()
+print(app.routes)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
