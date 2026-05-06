@@ -27,8 +27,18 @@ async def incoming_call():
         media_type="application/xml"
     )
 
+import base64
+import json
+import wave
+
+audio_chunks = []
+
 @app.websocket("/ws")
 async def ws(websocket: WebSocket):
+
+    global audio_chunks
+
+    audio_chunks = []
 
     print("⚡ WEBSOCKET FUNCTION ENTERED")
 
@@ -42,16 +52,46 @@ async def ws(websocket: WebSocket):
 
             msg = await websocket.receive()
 
-            # Handle disconnect FIRST
             if msg["type"] == "websocket.disconnect":
 
                 print("❌ WEBSOCKET DISCONNECTED")
 
                 break
 
-            print("📦 MESSAGE RECEIVED")
+            text = msg.get("text")
 
-            print(msg)
+            if not text:
+                continue
+
+            data = json.loads(text)
+
+            event = data.get("event")
+
+            if event == "media":
+
+                payload = data["media"]["payload"]
+
+                chunk = base64.b64decode(payload)
+
+                audio_chunks.append(chunk)
+
+            elif event == "stop":
+
+                print("⏹ STREAM STOPPED")
+
+                print(f"🎤 CHUNKS: {len(audio_chunks)}")
+
+                with wave.open("call.wav", "wb") as wf:
+
+                    wf.setnchannels(1)
+                    wf.setsampwidth(1)
+                    wf.setframerate(8000)
+
+                    wf.writeframes(b"".join(audio_chunks))
+
+                print("💾 WAV FILE SAVED")
+
+                break
 
     except Exception as e:
 
