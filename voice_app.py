@@ -65,7 +65,6 @@ async def websocket_test(websocket: WebSocket):
 
             message = await websocket.receive()
 
-            # Handle disconnect
             if message["type"] == "websocket.disconnect":
                 print("❌ Websocket disconnected")
                 break
@@ -89,16 +88,14 @@ async def websocket_test(websocket: WebSocket):
 
                 chunk = base64.b64decode(payload)
 
-                # Convert μ-law audio to PCM
-                pcm = audioop.ulaw2lin(chunk, 2)
-
-                audio_chunks.append(pcm)
+                # SAVE RAW μ-law CHUNKS
+                audio_chunks.append(chunk)
 
             elif event == "stop":
 
                 print("⏹ Stream stopped")
 
-                save_wav()
+                print(f"🎤 Saved {len(audio_chunks)} chunks")
 
                 break
 
