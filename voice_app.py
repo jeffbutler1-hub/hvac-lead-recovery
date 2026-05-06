@@ -61,28 +61,41 @@ async def websocket_endpoint(websocket: WebSocket):
 
         while True:
 
-            data = await websocket.receive_text()
+            message = await websocket.receive()
 
-            print("📦 Received websocket message")
+            # Log raw structure
+            print("📦 Raw websocket message:", message.keys())
 
-            message = json.loads(data)
+            # Handle disconnect cleanly
+            if message["type"] == "websocket.disconnect":
+                print("⏹ WebSocket disconnected")
+                break
 
-            event = message.get("event")
+            # Extract text payload
+            text_data = message.get("text")
+
+            if not text_data:
+                continue
+
+            data = json.loads(text_data)
+
+            event = data.get("event")
 
             print("🎯 Event:", event)
 
-            if event == "media":
+            if event == "start":
+                print("▶️ Stream started")
 
-                payload = message["media"]["payload"]
+            elif event == "media":
+
+                payload = data["media"]["payload"]
 
                 chunk = base64.b64decode(payload)
 
-                print("🎤 Received audio chunk:", len(chunk))
+                print("🎤 Audio chunk received:", len(chunk))
 
             elif event == "stop":
-
                 print("⏹ Stream stopped")
-
                 break
 
     except Exception as e:
