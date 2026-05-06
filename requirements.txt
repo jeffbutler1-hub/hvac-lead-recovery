@@ -7,3 +7,4 @@ twilio
 fastapi
 uvicorn
 websockets
+audioop-lts
