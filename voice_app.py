@@ -4,7 +4,7 @@ from openai import OpenAI
 
 import json
 import base64
-import audioop
+import audioop_lts as audioop
 import wave
 import os
 
