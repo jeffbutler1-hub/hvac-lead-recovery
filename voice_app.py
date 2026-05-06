@@ -8,6 +8,8 @@ import audioop
 import wave
 import os
 
+print("🚀 voice_app loaded")
+
 app = FastAPI()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
