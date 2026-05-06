@@ -1,8 +1,21 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import PlainTextResponse
+from openai import OpenAI
+
 import json
+import base64
+import audioop
+import wave
+import os
 
 app = FastAPI()
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# ---------------------------------------------------
+# Store audio chunks
+# ---------------------------------------------------
+audio_chunks = []
 
 # ---------------------------------------------------
 # Health check
@@ -12,23 +25,20 @@ async def root():
     return {"status": "voice streaming server running"}
 
 # ---------------------------------------------------
-# Twilio incoming call webhook
+# Incoming call webhook
 # ---------------------------------------------------
 @app.post("/incoming-call")
 async def incoming_call():
 
     print("📞 Incoming call webhook hit")
 
-    twiml = f"""
+    twiml = """
 <Response>
     <Connect>
         <Stream url="wss://hvac-lead-recovery-1.onrender.com/ws"/>
     </Connect>
 </Response>
 """
-
-    print("📡 Returning TwiML:")
-    print(twiml)
 
     return PlainTextResponse(
         content=twiml,
@@ -40,6 +50,10 @@ async def incoming_call():
 # ---------------------------------------------------
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+
+    global audio_chunks
+
+    audio_chunks = []
 
     print("⚡ WebSocket connection attempt")
 
@@ -53,24 +67,62 @@ async def websocket_endpoint(websocket: WebSocket):
 
             data = await websocket.receive_text()
 
-            print("📦 Raw message received")
-
             message = json.loads(data)
 
             event = message.get("event")
-
-            print("🎯 Event:", event)
 
             if event == "start":
                 print("▶️ Stream started")
 
             elif event == "media":
-                print("🎤 Audio chunk received")
+
+                payload = message["media"]["payload"]
+
+                chunk = base64.b64decode(payload)
+
+                # Convert μ-law to PCM
+                pcm_chunk = audioop.ulaw2lin(chunk, 2)
+
+                audio_chunks.append(pcm_chunk)
 
             elif event == "stop":
+
                 print("⏹ Stream stopped")
+
+                save_and_transcribe()
+
                 break
 
     except Exception as e:
         print("❌ WebSocket error:")
         print(str(e))
+
+# ---------------------------------------------------
+# Save WAV + transcribe
+# ---------------------------------------------------
+def save_and_transcribe():
+
+    global audio_chunks
+
+    filename = "call.wav"
+
+    print("💾 Saving WAV file...")
+
+    with wave.open(filename, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(8000)
+
+        wf.writeframes(b"".join(audio_chunks))
+
+    print("🧠 Sending to OpenAI transcription...")
+
+    with open(filename, "rb") as audio_file:
+
+        transcript = client.audio.transcriptions.create(
+            model="gpt-4o-transcribe",
+            file=audio_file
+        )
+
+    print("📄 TRANSCRIPT:")
+    print(transcript.text)
