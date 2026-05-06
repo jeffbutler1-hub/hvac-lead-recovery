@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.responses import Response
 import uvicorn
 import json
+import os
 
 app = FastAPI()
 
@@ -13,7 +14,7 @@ async def root():
     return {"status": "voice server running"}
 
 # -------------------------
-# Twilio webhook
+# Incoming call webhook
 # -------------------------
 @app.post("/incoming-call")
 async def incoming_call():
@@ -28,10 +29,13 @@ async def incoming_call():
     </Response>
     """
 
-    return Response(content=twiml, media_type="application/xml")
+    return Response(
+        content=twiml,
+        media_type="application/xml"
+    )
 
 # -------------------------
-# WebSocket stream
+# WebSocket endpoint
 # -------------------------
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -42,6 +46,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         while True:
+
             data = await websocket.receive_text()
 
             message = json.loads(data)
@@ -62,13 +67,12 @@ async def websocket_endpoint(websocket: WebSocket):
         print("❌ WebSocket error:", e)
 
 # -------------------------
-# Run locally
+# Run app
 # -------------------------
 if __name__ == "__main__":
-    import os
 
-        uvicorn.run(
-            app,
-            host="0.0.0.0",
-            port=int(os.environ.get("PORT", 5001))
-        )
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5001))
+    )
