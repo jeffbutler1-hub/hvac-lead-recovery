@@ -61,6 +61,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
     print("🔌 WebSocket connected")
 
+    media_count = 0
+
     try:
 
         while True:
@@ -76,14 +78,18 @@ async def websocket_endpoint(websocket: WebSocket):
 
             elif event == "media":
 
+                media_count += 1
+
                 payload = message["media"]["payload"]
 
                 chunk = base64.b64decode(payload)
 
-                # Convert μ-law to PCM
                 pcm_chunk = audioop.ulaw2lin(chunk, 2)
 
                 audio_chunks.append(pcm_chunk)
+
+                if media_count % 100 == 0:
+                    print(f"🎤 Received {media_count} chunks")
 
             elif event == "stop":
 
