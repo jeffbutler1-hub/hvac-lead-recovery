@@ -51,17 +51,11 @@ async def incoming_call():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
 
-    global audio_chunks
-
-    audio_chunks = []
-
     print("⚡ WebSocket connection attempt")
 
     await websocket.accept()
 
     print("🔌 WebSocket connected")
-
-    media_count = 0
 
     try:
 
@@ -69,38 +63,32 @@ async def websocket_endpoint(websocket: WebSocket):
 
             data = await websocket.receive_text()
 
+            print("📦 Received websocket message")
+
             message = json.loads(data)
 
             event = message.get("event")
 
-            if event == "start":
-                print("▶️ Stream started")
+            print("🎯 Event:", event)
 
-            elif event == "media":
-
-                media_count += 1
+            if event == "media":
 
                 payload = message["media"]["payload"]
 
                 chunk = base64.b64decode(payload)
 
-                pcm_chunk = audioop.ulaw2lin(chunk, 2)
-
-                audio_chunks.append(pcm_chunk)
-
-                if media_count % 100 == 0:
-                    print(f"🎤 Received {media_count} chunks")
+                print("🎤 Received audio chunk:", len(chunk))
 
             elif event == "stop":
 
                 print("⏹ Stream stopped")
 
-                save_and_transcribe()
-
                 break
 
     except Exception as e:
-        print("❌ WebSocket error:")
+
+        print("❌ WEBSOCKET EXCEPTION")
+        print(type(e))
         print(str(e))
 
 # ---------------------------------------------------
