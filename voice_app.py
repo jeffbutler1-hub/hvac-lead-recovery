@@ -23,7 +23,7 @@ async def incoming_call():
     <Response>
         <Say>Connecting you to the AI assistant.</Say>
         <Connect>
-            <Stream url="wss://encore-dingbat-available.ngrok-free.dev/ws" />
+            <Stream url="wss://hvac-lead-recovery-1.onrender.com/ws" />
         </Connect>
     </Response>
     """
@@ -65,4 +65,10 @@ async def websocket_endpoint(websocket: WebSocket):
 # Run locally
 # -------------------------
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5001)
+    import os
+
+        uvicorn.run(
+            app,
+            host="0.0.0.0",
+            port=int(os.environ.get("PORT", 5001))
+        )
