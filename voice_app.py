@@ -1,9 +1,19 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import PlainTextResponse
 
+import json
+import base64
+import audioop
+import wave
+
 app = FastAPI()
 
 print("🚀 voice_app loaded")
+
+# ---------------------------------------------------
+# Store audio chunks
+# ---------------------------------------------------
+audio_chunks = []
 
 # ---------------------------------------------------
 # Health check
@@ -34,10 +44,14 @@ async def incoming_call():
     )
 
 # ---------------------------------------------------
-# WEBSOCKET TEST
+# Websocket endpoint
 # ---------------------------------------------------
 @app.websocket("/ws")
 async def websocket_test(websocket: WebSocket):
+
+    global audio_chunks
+
+    audio_chunks = []
 
     print("⚡ ENTERED WEBSOCKET FUNCTION")
 
@@ -45,10 +59,70 @@ async def websocket_test(websocket: WebSocket):
 
     print("🔌 WEBSOCKET ACCEPTED")
 
-    while True:
+    try:
 
-        message = await websocket.receive()
+        while True:
 
-        print("📦 MESSAGE RECEIVED")
+            message = await websocket.receive()
 
-        print(message)
+            # Handle disconnect
+            if message["type"] == "websocket.disconnect":
+                print("❌ Websocket disconnected")
+                break
+
+            text_data = message.get("text")
+
+            if not text_data:
+                continue
+
+            data = json.loads(text_data)
+
+            event = data.get("event")
+
+            if event == "start":
+
+                print("▶️ Stream started")
+
+            elif event == "media":
+
+                payload = data["media"]["payload"]
+
+                chunk = base64.b64decode(payload)
+
+                # Convert μ-law audio to PCM
+                pcm = audioop.ulaw2lin(chunk, 2)
+
+                audio_chunks.append(pcm)
+
+            elif event == "stop":
+
+                print("⏹ Stream stopped")
+
+                save_wav()
+
+                break
+
+    except Exception as e:
+
+        print("❌ WEBSOCKET ERROR")
+        print(type(e))
+        print(str(e))
+
+# ---------------------------------------------------
+# Save WAV file
+# ---------------------------------------------------
+def save_wav():
+
+    global audio_chunks
+
+    print("💾 Saving WAV")
+
+    with wave.open("call.wav", "wb") as wf:
+
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(8000)
+
+        wf.writeframes(b"".join(audio_chunks))
+
+    print("✅ WAV SAVED")
