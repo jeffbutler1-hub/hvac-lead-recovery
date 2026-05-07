@@ -1,7 +1,11 @@
+from openai import OpenAI
+import os
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import PlainTextResponse
 
 app = FastAPI()
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 print("🚀 CLEAN APP LOADED")
 
@@ -110,7 +114,9 @@ def save_wav():
 
     print(f"💾 Saving WAV with {len(audio_chunks)} chunks")
 
-    with wave.open("call.wav", "wb") as wf:
+    filename = "call.wav"
+
+    with wave.open(filename, "wb") as wf:
 
         wf.setnchannels(1)
         wf.setsampwidth(1)
@@ -119,3 +125,29 @@ def save_wav():
         wf.writeframes(b"".join(audio_chunks))
 
     print("✅ WAV SAVED")
+
+    transcribe_audio(filename)
+
+def transcribe_audio(filename):
+
+    print("🧠 Sending audio to OpenAI...")
+
+    try:
+
+        with open(filename, "rb") as audio_file:
+
+            transcript = client.audio.transcriptions.create(
+                model="gpt-4o-mini-transcribe",
+                file=audio_file
+            )
+
+        print("📄 TRANSCRIPT:")
+        print(transcript.text)
+
+    except Exception as e:
+
+        print("❌ TRANSCRIPTION ERROR")
+
+        print(type(e))
+
+        print(str(e))
