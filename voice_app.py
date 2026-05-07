@@ -1,18 +1,37 @@
-from openai import OpenAI
-import os
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import PlainTextResponse
+from openai import OpenAI
+
+import os
+import json
+import base64
+import wave
+import threading
 
 app = FastAPI()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 print("🚀 CLEAN APP LOADED")
 
+# ---------------------------------------------------
+# OpenAI client
+# ---------------------------------------------------
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# ---------------------------------------------------
+# Audio storage
+# ---------------------------------------------------
+audio_chunks = []
+
+# ---------------------------------------------------
+# Health check
+# ---------------------------------------------------
 @app.get("/")
 async def root():
     return {"status": "running"}
 
+# ---------------------------------------------------
+# Incoming call webhook
+# ---------------------------------------------------
 @app.post("/incoming-call")
 async def incoming_call():
 
@@ -31,12 +50,9 @@ async def incoming_call():
         media_type="application/xml"
     )
 
-import base64
-import json
-import wave
-
-audio_chunks = []
-
+# ---------------------------------------------------
+# WebSocket endpoint
+# ---------------------------------------------------
 @app.websocket("/ws")
 async def ws(websocket: WebSocket):
 
@@ -63,6 +79,7 @@ async def ws(websocket: WebSocket):
 
                 break
 
+            # Ignore frames without text
             if "text" not in msg:
                 continue
 
@@ -75,7 +92,11 @@ async def ws(websocket: WebSocket):
 
             event = data.get("event")
 
-            if event == "media":
+            if event == "start":
+
+                print("▶️ STREAM STARTED")
+
+            elif event == "media":
 
                 payload = data["media"]["payload"]
 
@@ -85,6 +106,7 @@ async def ws(websocket: WebSocket):
 
                 chunk_count += 1
 
+                # Reduce log spam
                 if chunk_count % 100 == 0:
                     print(f"🎤 {chunk_count} chunks received")
 
@@ -92,7 +114,13 @@ async def ws(websocket: WebSocket):
 
                 print("⏹ STREAM STOPPED")
 
-                save_wav()
+                filename = save_wav()
+
+                # Run transcription in background
+                threading.Thread(
+                    target=transcribe_audio,
+                    args=(filename,)
+                ).start()
 
                 break
 
@@ -108,13 +136,16 @@ async def ws(websocket: WebSocket):
 
         print(str(e))
 
+# ---------------------------------------------------
+# Save WAV file
+# ---------------------------------------------------
 def save_wav():
 
     global audio_chunks
 
-    print(f"💾 Saving WAV with {len(audio_chunks)} chunks")
-
     filename = "call.wav"
+
+    print(f"💾 Saving WAV with {len(audio_chunks)} chunks")
 
     with wave.open(filename, "wb") as wf:
 
@@ -126,9 +157,14 @@ def save_wav():
 
     print("✅ WAV SAVED")
 
+    return filename
+
+# ---------------------------------------------------
+# Background transcription
+# ---------------------------------------------------
 def transcribe_audio(filename):
 
-    print("🧠 Sending audio to OpenAI...")
+    print("🧠 Starting background transcription...")
 
     try:
 
