@@ -46,28 +46,41 @@ async def ws(websocket: WebSocket):
 
     print("🔌 WEBSOCKET ACCEPTED")
 
+    media_count = 0
+
     try:
 
         while True:
 
             msg = await websocket.receive()
 
+            # Disconnect handling
             if msg["type"] == "websocket.disconnect":
 
                 print("❌ WEBSOCKET DISCONNECTED")
 
                 break
 
-            text = msg.get("text")
-
-            if not text:
+            # Ignore frames without text
+            if "text" not in msg:
                 continue
 
-            data = json.loads(text)
+            text_data = msg["text"]
+
+            if not text_data:
+                continue
+
+            data = json.loads(text_data)
 
             event = data.get("event")
 
-            if event == "media":
+            if event == "start":
+
+                print("▶️ STREAM STARTED")
+
+            elif event == "media":
+
+                media_count += 1
 
                 payload = data["media"]["payload"]
 
@@ -75,11 +88,15 @@ async def ws(websocket: WebSocket):
 
                 audio_chunks.append(chunk)
 
+                # Log every 100 chunks only
+                if media_count % 100 == 0:
+                    print(f"🎤 RECEIVED {media_count} AUDIO CHUNKS")
+
             elif event == "stop":
 
                 print("⏹ STREAM STOPPED")
 
-                print(f"🎤 CHUNKS: {len(audio_chunks)}")
+                print(f"🎤 TOTAL CHUNKS: {media_count}")
 
                 with wave.open("call.wav", "wb") as wf:
 
