@@ -126,8 +126,6 @@ def save_wav():
 
     print("✅ WAV SAVED")
 
-    transcribe_audio(filename)
-
 def transcribe_audio(filename):
 
     print("🧠 Sending audio to OpenAI...")
