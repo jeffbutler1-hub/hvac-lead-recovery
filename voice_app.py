@@ -8,6 +8,10 @@ import base64
 import wave
 import threading
 
+import subprocess
+
+print(subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True).stdout)
+
 app = FastAPI()
 
 print("🚀 CLEAN APP LOADED")
