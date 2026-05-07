@@ -42,8 +42,32 @@ async def ws(websocket: WebSocket):
 
     print("🔌 ACCEPTED")
 
-    while True:
+    try:
 
-        msg = await websocket.receive()
+        while True:
 
-        print("📦 RECEIVED MESSAGE")
+            msg = await websocket.receive()
+
+            # IMPORTANT:
+            # stop immediately on disconnect
+            if msg["type"] == "websocket.disconnect":
+
+                print("❌ CLIENT DISCONNECTED")
+
+                break
+
+            print("📦 RECEIVED MESSAGE")
+
+    except RuntimeError as e:
+
+        print("⚠️ NORMAL WEBSOCKET CLOSE")
+
+        print(str(e))
+
+    except Exception as e:
+
+        print("❌ UNEXPECTED ERROR")
+
+        print(type(e))
+
+        print(str(e))
