@@ -498,13 +498,47 @@ You extract HVAC lead information.
 
 Return ONLY valid JSON.
 
+Classify the operational importance of the call.
+
 Fields:
 - customer_name
 - phone_number
 - issue
-- intent
+- call_type
 - urgency
+- lead_value
+- emergency
+- install_opportunity
+- commercial
 - summary
+- recommended_action
+
+Guidelines:
+
+urgency:
+- low
+- medium
+- high
+
+lead_value:
+- low
+- medium
+- high
+
+call_type examples:
+- repair
+- maintenance
+- installation
+- inspection
+- estimate
+
+recommended_action examples:
+- callback ASAP
+- emergency dispatch
+- schedule estimate
+- routine follow-up
+
+Use reasonable operational judgment.
 """
                 },
 
