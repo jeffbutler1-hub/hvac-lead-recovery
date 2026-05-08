@@ -697,22 +697,25 @@ def send_sms_notification(
     try:
 
         sms_body = f"""
-🔥 New Lead for {contractor_name}
+🔥 {lead_data.get('urgency', 'Unknown').upper()} HVAC LEAD
 
 Customer:
 {lead_data.get('customer_name', 'Unknown')}
 
-Phone:
-{lead_data.get('phone_number', metadata.get('from_number'))}
-
 Issue:
 {lead_data.get('issue', 'Unknown')}
 
-Urgency:
-{lead_data.get('urgency', 'Unknown')}
+Type:
+{lead_data.get('call_type', 'Unknown')}
 
-Summary:
-{lead_data.get('summary', 'No summary')}
+Value:
+{lead_data.get('lead_value', 'Unknown')}
+
+Action:
+{lead_data.get('recommended_action', 'Unknown')}
+
+Phone:
+{lead_data.get('phone_number', metadata.get('from_number'))}
 """
 
         logger.info("📲 SENDING SMS")
