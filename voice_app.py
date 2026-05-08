@@ -5,6 +5,8 @@ from openai import OpenAI
 import os
 import json
 import base64
+import subprocess
+import threading
 
 app = FastAPI()
 
@@ -13,7 +15,9 @@ print("🚀 CLEAN APP LOADED")
 # ---------------------------------------------------
 # OpenAI client
 # ---------------------------------------------------
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
+)
 
 # ---------------------------------------------------
 # Audio storage
@@ -70,7 +74,7 @@ async def ws(websocket: WebSocket):
 
             msg = await websocket.receive()
 
-            # Handle disconnect cleanly
+            # Handle disconnect
             if msg["type"] == "websocket.disconnect":
 
                 print("❌ CLIENT DISCONNECTED")
@@ -104,7 +108,6 @@ async def ws(websocket: WebSocket):
 
                 chunk_count += 1
 
-                # Reduce log spam
                 if chunk_count % 100 == 0:
                     print(f"🎤 {chunk_count} chunks received")
 
@@ -112,7 +115,10 @@ async def ws(websocket: WebSocket):
 
                 print("⏹ STREAM STOPPED")
 
-                save_raw_audio()
+                # Save + process in background
+                threading.Thread(
+                    target=process_call_audio
+                ).start()
 
                 break
 
@@ -129,18 +135,123 @@ async def ws(websocket: WebSocket):
         print(str(e))
 
 # ---------------------------------------------------
-# Save raw μ-law audio
+# Main audio processing pipeline
 # ---------------------------------------------------
-def save_raw_audio():
+def process_call_audio():
 
     global audio_chunks
 
-    filename = "call.ulaw"
+    try:
 
-    print(f"💾 Saving RAW μ-law audio with {len(audio_chunks)} chunks")
+        # ---------------------------------------------------
+        # Save raw μ-law audio
+        # ---------------------------------------------------
+        raw_filename = "call.ulaw"
 
-    with open(filename, "wb") as f:
+        print(f"💾 Saving RAW μ-law audio with {len(audio_chunks)} chunks")
 
-        f.write(b"".join(audio_chunks))
+        with open(raw_filename, "wb") as f:
 
-    print("✅ RAW AUDIO SAVED")
+            f.write(b"".join(audio_chunks))
+
+        print("✅ RAW μ-law FILE SAVED")
+
+        # ---------------------------------------------------
+        # Convert μ-law -> WAV using ffmpeg
+        # ---------------------------------------------------
+        wav_filename = "call.wav"
+
+        command = [
+            "ffmpeg",
+            "-f", "mulaw",
+            "-ar", "8000",
+            "-ac", "1",
+            "-i", raw_filename,
+            wav_filename,
+            "-y"
+        ]
+
+        subprocess.run(
+            command,
+            capture_output=True,
+            text=True
+        )
+
+        print("🎵 FFMPEG CONVERSION COMPLETE")
+
+        # ---------------------------------------------------
+        # Transcription
+        # ---------------------------------------------------
+        print("🧠 Starting transcription...")
+
+        with open(wav_filename, "rb") as audio_file:
+
+            transcript = client.audio.transcriptions.create(
+                model="gpt-4o-mini-transcribe",
+                file=audio_file
+            )
+
+        transcript_text = transcript.text
+
+        print("📄 TRANSCRIPT:")
+
+        print(transcript_text)
+
+        # ---------------------------------------------------
+        # Structured extraction
+        # ---------------------------------------------------
+        extract_lead_info(transcript_text)
+
+    except Exception as e:
+
+        print("❌ PROCESSING ERROR")
+
+        print(type(e))
+
+        print(str(e))
+
+# ---------------------------------------------------
+# Extract structured lead data
+# ---------------------------------------------------
+def extract_lead_info(transcript_text):
+
+    try:
+
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """
+You extract HVAC lead information.
+
+Return ONLY valid JSON.
+
+Fields:
+- customer_name
+- phone_number
+- issue
+- intent
+- urgency
+"""
+                },
+                {
+                    "role": "user",
+                    "content": transcript_text
+                }
+            ]
+        )
+
+        result = response.choices[0].message.content
+
+        print("📋 EXTRACTED LEAD INFO:")
+
+        print(result)
+
+    except Exception as e:
+
+        print("❌ EXTRACTION ERROR")
+
+        print(type(e))
+
+        print(str(e))
