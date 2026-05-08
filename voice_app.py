@@ -1,3 +1,6 @@
+# HVAC AI Receptionist Backend — Production-Oriented MVP
+
+```python
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import PlainTextResponse
 
@@ -10,15 +13,26 @@ import json
 import base64
 import subprocess
 import threading
+import logging
 
 from datetime import datetime
+
+# ---------------------------------------------------
+# Logging Configuration
+# ---------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------
 # FastAPI App
 # ---------------------------------------------------
 app = FastAPI()
 
-print("🚀 HVAC LEAD RECOVERY APP LOADED")
+logger.info("🚀 HVAC LEAD RECOVERY APP LOADED")
 
 # ---------------------------------------------------
 # OpenAI Client
@@ -36,7 +50,7 @@ twilio_client = TwilioClient(
 )
 
 TWILIO_SMS_NUMBER = os.getenv(
-    "TOLL_FREE_NUMBER"
+    "TWILIO_SMS_NUMBER"
 )
 
 # ---------------------------------------------------
@@ -59,11 +73,11 @@ if SUPABASE_URL and SUPABASE_KEY:
         SUPABASE_KEY
     )
 
-    print("✅ SUPABASE CONNECTED")
+    logger.info("✅ SUPABASE CONNECTED")
 
 else:
 
-    print("⚠️ SUPABASE NOT CONFIGURED")
+    logger.warning("⚠️ SUPABASE NOT CONFIGURED")
 
 # ---------------------------------------------------
 # Active Calls
@@ -77,7 +91,7 @@ active_calls = {}
 @app.on_event("startup")
 async def startup_event():
 
-    print("🚀 APPLICATION STARTUP COMPLETE")
+    logger.info("🚀 APPLICATION STARTUP COMPLETE")
 
 # ---------------------------------------------------
 # Health Check
@@ -95,7 +109,7 @@ async def root():
 @app.post("/incoming-call")
 async def incoming_call(request: Request):
 
-    print("📞 INCOMING CALL RECEIVED")
+    logger.info("📞 INCOMING CALL RECEIVED")
 
     form = await request.form()
 
@@ -103,9 +117,9 @@ async def incoming_call(request: Request):
     to_number = form.get("To")
     call_sid = form.get("CallSid")
 
-    print(f"Caller: {from_number}")
-    print(f"Business Line: {to_number}")
-    print(f"CallSid: {call_sid}")
+    logger.info(f"Caller: {from_number}")
+    logger.info(f"Business Line: {to_number}")
+    logger.info(f"CallSid: {call_sid}")
 
     twiml = f"""
 <Response>
@@ -130,7 +144,7 @@ async def incoming_call(request: Request):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
 
-    print("🔥 WEBSOCKET CONNECTED")
+    logger.info("🔥 WEBSOCKET CONNECTED")
 
     await websocket.accept()
 
@@ -147,7 +161,7 @@ async def websocket_endpoint(websocket: WebSocket):
             # ---------------------------------------------------
             if msg["type"] == "websocket.disconnect":
 
-                print("❌ WEBSOCKET DISCONNECTED")
+                logger.warning("❌ WEBSOCKET DISCONNECTED")
 
                 break
 
@@ -188,9 +202,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 current_call_sid = call_sid
 
-                print("▶️ STREAM STARTED")
-                print(f"CallSid: {call_sid}")
-                print(f"StreamSid: {stream_sid}")
+                logger.info("▶️ STREAM STARTED")
+                logger.info(f"CallSid: {call_sid}")
+                logger.info(f"StreamSid: {stream_sid}")
 
                 active_calls[call_sid] = {
 
@@ -244,7 +258,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 if chunk_count % 100 == 0:
 
-                    print(
+                    logger.info(
                         f"🎤 {chunk_count} chunks "
                         f"received for {current_call_sid}"
                     )
@@ -254,7 +268,7 @@ async def websocket_endpoint(websocket: WebSocket):
             # ---------------------------------------------------
             elif event == "stop":
 
-                print("⏹ STREAM STOPPED")
+                logger.info("⏹ STREAM STOPPED")
 
                 if not current_call_sid:
                     break
@@ -282,7 +296,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     args=(
                         audio_copy,
                         metadata_copy
-                    )
+                    ),
+                    daemon=True
                 ).start()
 
                 # ---------------------------------------------------
@@ -294,13 +309,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except RuntimeError:
 
-        print("⚠️ NORMAL WEBSOCKET CLOSE")
+        logger.warning("⚠️ NORMAL WEBSOCKET CLOSE")
 
     except Exception as e:
 
-        print("❌ WEBSOCKET ERROR")
-        print(type(e))
-        print(str(e))
+        logger.exception("❌ WEBSOCKET ERROR")
 
 # ---------------------------------------------------
 # Main Audio Pipeline
@@ -311,7 +324,7 @@ def process_call_audio(audio_data, metadata):
 
         call_sid = metadata["call_sid"]
 
-        print(f"🧠 PROCESSING CALL: {call_sid}")
+        logger.info(f"🧠 PROCESSING CALL: {call_sid}")
 
         # ---------------------------------------------------
         # Filenames
@@ -323,7 +336,7 @@ def process_call_audio(audio_data, metadata):
         # ---------------------------------------------------
         # Save μ-law Audio
         # ---------------------------------------------------
-        print(
+        logger.info(
             f"💾 Saving μ-law audio "
             f"({len(audio_data)} chunks)"
         )
@@ -332,7 +345,7 @@ def process_call_audio(audio_data, metadata):
 
             f.write(b"".join(audio_data))
 
-        print("✅ RAW AUDIO SAVED")
+        logger.info("✅ RAW AUDIO SAVED")
 
         # ---------------------------------------------------
         # Convert μ-law -> WAV
@@ -360,16 +373,16 @@ def process_call_audio(audio_data, metadata):
             text=True
         )
 
-        print("🎵 FFMPEG CONVERSION COMPLETE")
+        logger.info("🎵 FFMPEG CONVERSION COMPLETE")
 
         if result.stderr:
 
-            print(result.stderr)
+            logger.info(result.stderr)
 
         # ---------------------------------------------------
         # Transcription
         # ---------------------------------------------------
-        print("🧠 STARTING TRANSCRIPTION")
+        logger.info("🧠 STARTING TRANSCRIPTION")
 
         with open(wav_filename, "rb") as audio_file:
 
@@ -382,8 +395,8 @@ def process_call_audio(audio_data, metadata):
 
         transcript_text = transcript.text
 
-        print("📄 TRANSCRIPT:")
-        print(transcript_text)
+        logger.info("📄 TRANSCRIPT:")
+        logger.info(transcript_text)
 
         # ---------------------------------------------------
         # Structured Extraction
@@ -405,14 +418,14 @@ def process_call_audio(audio_data, metadata):
 
             contractor_id = contractor["id"]
 
-            print(
+            logger.info(
                 f"🏢 CONTRACTOR: "
                 f"{contractor['business_name']}"
             )
 
         else:
 
-            print(
+            logger.warning(
                 "⚠️ NO CONTRACTOR FOUND"
             )
 
@@ -452,18 +465,16 @@ def process_call_audio(audio_data, metadata):
 
         else:
 
-            print(
+            logger.warning(
                 "⚠️ SKIPPING SMS - "
                 "NO CONTRACTOR FOUND"
             )
 
-        print("✅ CALL PIPELINE COMPLETE")
+        logger.info("✅ CALL PIPELINE COMPLETE")
 
-    except Exception as e:
+    except Exception:
 
-        print("❌ PROCESSING ERROR")
-        print(type(e))
-        print(str(e))
+        logger.exception("❌ PROCESSING ERROR")
 
 # ---------------------------------------------------
 # GPT Structured Extraction
@@ -514,9 +525,9 @@ Fields:
 
         parsed = json.loads(result)
 
-        print("📋 EXTRACTED LEAD INFO:")
+        logger.info("📋 EXTRACTED LEAD INFO:")
 
-        print(
+        logger.info(
             json.dumps(
                 parsed,
                 indent=2
@@ -525,12 +536,9 @@ Fields:
 
         return parsed
 
-    except Exception as e:
+    except Exception:
 
-        print("❌ EXTRACTION ERROR")
-
-        print(type(e))
-        print(str(e))
+        logger.exception("❌ EXTRACTION ERROR")
 
         return {}
 
@@ -558,18 +566,15 @@ def get_contractor_by_twilio_number(
 
         contractor = data[0]
 
-        print("🏢 CONTRACTOR FOUND")
+        logger.info("🏢 CONTRACTOR FOUND")
 
-        print(contractor)
+        logger.info(contractor)
 
         return contractor
 
-    except Exception as e:
+    except Exception:
 
-        print("❌ CONTRACTOR LOOKUP ERROR")
-
-        print(type(e))
-        print(str(e))
+        logger.exception("❌ CONTRACTOR LOOKUP ERROR")
 
         return None
 
@@ -615,9 +620,9 @@ def save_call_record(
             "lead_data": lead_data
         }
 
-        print("💾 SAVING CALL RECORD")
+        logger.info("💾 SAVING CALL RECORD")
 
-        print(
+        logger.info(
             json.dumps(
                 record,
                 indent=2
@@ -633,22 +638,19 @@ def save_call_record(
                 "calls"
             ).insert(record).execute()
 
-            print("✅ SAVED TO SUPABASE")
+            logger.info("✅ SAVED TO SUPABASE")
 
-            print(response)
+            logger.info(response)
 
         else:
 
-            print(
+            logger.warning(
                 "⚠️ NO DATABASE CONNECTED"
             )
 
-    except Exception as e:
+    except Exception:
 
-        print("❌ DATABASE SAVE ERROR")
-
-        print(type(e))
-        print(str(e))
+        logger.exception("❌ DATABASE SAVE ERROR")
 
 # ---------------------------------------------------
 # SMS Notification
@@ -682,9 +684,9 @@ Summary:
 {lead_data.get('summary', 'No summary')}
 """
 
-        print("📲 SENDING SMS")
+        logger.info("📲 SENDING SMS")
 
-        print(sms_body)
+        logger.info(sms_body)
 
         message = twilio_client.messages.create(
 
@@ -695,13 +697,10 @@ Summary:
             to=contractor_number
         )
 
-        print("✅ SMS SENT")
+        logger.info("✅ SMS SENT")
 
-        print(message.sid)
+        logger.info(message.sid)
 
-    except Exception as e:
+    except Exception:
 
-        print("❌ SMS ERROR")
-
-        print(type(e))
-        print(str(e))
+        logger.exception("❌ SMS ERROR")
