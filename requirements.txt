@@ -8,3 +8,5 @@ fastapi
 uvicorn
 websockets
 audioop-lts
+supabase
+python-multipart
