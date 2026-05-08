@@ -36,7 +36,7 @@ twilio_client = TwilioClient(
 )
 
 TWILIO_SMS_NUMBER = os.getenv(
-    "TWILIO_SMS_NUMBER"
+    "TOLL_FREE_NUMBER"
 )
 
 # ---------------------------------------------------
