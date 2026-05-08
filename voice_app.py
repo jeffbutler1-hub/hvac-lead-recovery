@@ -116,8 +116,11 @@ async def ws(websocket: WebSocket):
                 print("⏹ STREAM STOPPED")
 
                 # Save + process in background
+                audio_copy = audio_chunks.copy()
+                
                 threading.Thread(
                     target=process_call_audio
+                    args=(audio_copy,)
                 ).start()
 
                 break
@@ -137,9 +140,7 @@ async def ws(websocket: WebSocket):
 # ---------------------------------------------------
 # Main audio processing pipeline
 # ---------------------------------------------------
-def process_call_audio():
-
-    global audio_chunks
+def process_call_audio(audio_data):
 
     try:
 
@@ -148,13 +149,13 @@ def process_call_audio():
         # ---------------------------------------------------
         raw_filename = "call.ulaw"
 
-        print(f"💾 Saving RAW μ-law audio with {len(audio_chunks)} chunks")
+        print(f"💾 Saving RAW μ-law audio with {len(audio_data)} chunks")
 
         with open(raw_filename, "wb") as f:
 
-            f.write(b"".join(audio_chunks))
+            f.write(b"".join(audio_data))
 
-        print("✅ RAW μ-law FILE SAVED")
+        print("✅ RAW AUDIO SAVED")
 
         # ---------------------------------------------------
         # Convert μ-law -> WAV using ffmpeg
@@ -171,13 +172,16 @@ def process_call_audio():
             "-y"
         ]
 
-        subprocess.run(
+        result = subprocess.run(
             command,
             capture_output=True,
             text=True
         )
 
         print("🎵 FFMPEG CONVERSION COMPLETE")
+
+        if result.stderr:
+            print(result.stderr)
 
         # ---------------------------------------------------
         # Transcription
