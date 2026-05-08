@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import PlainTextResponse
 from openai import OpenAI
 
@@ -7,10 +7,26 @@ import json
 import base64
 import subprocess
 import threading
+from datetime import datetime
 
+# ---------------------------------------------------
+# OPTIONAL DATABASE SUPPORT (SUPABASE)
+# ---------------------------------------------------
+# pip install supabase
+#
+# Add these environment variables:
+# SUPABASE_URL=
+# SUPABASE_KEY=
+# ---------------------------------------------------
+
+from supabase import create_client
+
+# ---------------------------------------------------
+# FastAPI app
+# ---------------------------------------------------
 app = FastAPI()
 
-print("🚀 CLEAN APP LOADED")
+print("🚀 HVAC LEAD RECOVERY APP LOADED")
 
 # ---------------------------------------------------
 # OpenAI client
@@ -20,29 +36,68 @@ client = OpenAI(
 )
 
 # ---------------------------------------------------
-# Audio storage
+# Supabase client
 # ---------------------------------------------------
-audio_chunks = []
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+supabase = None
+
+if SUPABASE_URL and SUPABASE_KEY:
+
+    supabase = create_client(
+        SUPABASE_URL,
+        SUPABASE_KEY
+    )
+
+    print("✅ SUPABASE CONNECTED")
+
+else:
+
+    print("⚠️ SUPABASE NOT CONFIGURED")
+
+# ---------------------------------------------------
+# ACTIVE CALL STORAGE
+# Prevents cross-call contamination
+# ---------------------------------------------------
+active_calls = {}
 
 # ---------------------------------------------------
 # Health check
 # ---------------------------------------------------
 @app.get("/")
 async def root():
-    return {"status": "running"}
+
+    return {
+        "status": "running"
+    }
 
 # ---------------------------------------------------
-# Incoming call webhook
+# Incoming Twilio webhook
 # ---------------------------------------------------
 @app.post("/incoming-call")
-async def incoming_call():
+async def incoming_call(request: Request):
 
-    print("📞 INCOMING CALL HIT")
+    print("📞 INCOMING CALL RECEIVED")
 
-    twiml = """
+    form = await request.form()
+
+    from_number = form.get("From")
+    to_number = form.get("To")
+    call_sid = form.get("CallSid")
+
+    print(f"Caller: {from_number}")
+    print(f"Business Line: {to_number}")
+    print(f"CallSid: {call_sid}")
+
+    twiml = f"""
 <Response>
     <Connect>
-        <Stream url="wss://hvac-lead-recovery-1.onrender.com/ws"/>
+        <Stream url="wss://hvac-lead-recovery-1.onrender.com/ws">
+            <Parameter name="from" value="{from_number}" />
+            <Parameter name="to" value="{to_number}" />
+            <Parameter name="call_sid" value="{call_sid}" />
+        </Stream>
     </Connect>
 </Response>
 """
@@ -56,17 +111,13 @@ async def incoming_call():
 # WebSocket endpoint
 # ---------------------------------------------------
 @app.websocket("/ws")
-async def ws(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket):
 
-    global audio_chunks
-
-    audio_chunks = []
-
-    print("🔥 WEBSOCKET STARTED")
+    print("🔥 WEBSOCKET CONNECTED")
 
     await websocket.accept()
 
-    chunk_count = 0
+    current_call_sid = None
 
     try:
 
@@ -74,14 +125,18 @@ async def ws(websocket: WebSocket):
 
             msg = await websocket.receive()
 
+            # ---------------------------------------------------
             # Handle disconnect
+            # ---------------------------------------------------
             if msg["type"] == "websocket.disconnect":
 
-                print("❌ CLIENT DISCONNECTED")
+                print("❌ WEBSOCKET DISCONNECTED")
 
                 break
 
-            # Ignore frames without text
+            # ---------------------------------------------------
+            # Ignore empty frames
+            # ---------------------------------------------------
             if "text" not in msg:
                 continue
 
@@ -94,34 +149,111 @@ async def ws(websocket: WebSocket):
 
             event = data.get("event")
 
+            # ---------------------------------------------------
+            # STREAM START
+            # ---------------------------------------------------
             if event == "start":
 
-                print("▶️ STREAM STARTED")
+                start_data = data.get("start", {})
 
+                stream_sid = start_data.get("streamSid")
+
+                custom_params = start_data.get(
+                    "customParameters",
+                    {}
+                )
+
+                call_sid = custom_params.get("call_sid")
+
+                current_call_sid = call_sid
+
+                print("▶️ STREAM STARTED")
+                print(f"CallSid: {call_sid}")
+                print(f"StreamSid: {stream_sid}")
+
+                active_calls[call_sid] = {
+                    "audio_chunks": [],
+                    "chunk_count": 0,
+                    "metadata": {
+                        "call_sid": call_sid,
+                        "stream_sid": stream_sid,
+                        "from_number": custom_params.get("from"),
+                        "to_number": custom_params.get("to"),
+                        "started_at": datetime.utcnow().isoformat()
+                    }
+                }
+
+            # ---------------------------------------------------
+            # MEDIA EVENT
+            # ---------------------------------------------------
             elif event == "media":
+
+                if not current_call_sid:
+                    continue
 
                 payload = data["media"]["payload"]
 
                 chunk = base64.b64decode(payload)
 
-                audio_chunks.append(chunk)
+                active_calls[current_call_sid][
+                    "audio_chunks"
+                ].append(chunk)
 
-                chunk_count += 1
+                active_calls[current_call_sid][
+                    "chunk_count"
+                ] += 1
+
+                chunk_count = active_calls[
+                    current_call_sid
+                ]["chunk_count"]
 
                 if chunk_count % 100 == 0:
-                    print(f"🎤 {chunk_count} chunks received")
 
+                    print(
+                        f"🎤 {chunk_count} chunks "
+                        f"received for {current_call_sid}"
+                    )
+
+            # ---------------------------------------------------
+            # STOP EVENT
+            # ---------------------------------------------------
             elif event == "stop":
 
                 print("⏹ STREAM STOPPED")
 
-                # Save + process in background
-                audio_copy = audio_chunks.copy()
-                
+                if not current_call_sid:
+                    break
+
+                call_data = active_calls.get(
+                    current_call_sid
+                )
+
+                if not call_data:
+                    break
+
+                audio_copy = call_data[
+                    "audio_chunks"
+                ].copy()
+
+                metadata_copy = call_data[
+                    "metadata"
+                ].copy()
+
+                # ---------------------------------------------------
+                # Process asynchronously
+                # ---------------------------------------------------
                 threading.Thread(
                     target=process_call_audio,
-                    args=(audio_copy,)
+                    args=(
+                        audio_copy,
+                        metadata_copy
+                    )
                 ).start()
+
+                # ---------------------------------------------------
+                # Cleanup memory
+                # ---------------------------------------------------
+                del active_calls[current_call_sid]
 
                 break
 
@@ -131,25 +263,34 @@ async def ws(websocket: WebSocket):
 
     except Exception as e:
 
-        print("❌ ERROR")
-
+        print("❌ WEBSOCKET ERROR")
         print(type(e))
-
         print(str(e))
 
 # ---------------------------------------------------
 # Main audio processing pipeline
 # ---------------------------------------------------
-def process_call_audio(audio_data):
+def process_call_audio(audio_data, metadata):
 
     try:
 
-        # ---------------------------------------------------
-        # Save raw μ-law audio
-        # ---------------------------------------------------
-        raw_filename = "call.ulaw"
+        call_sid = metadata["call_sid"]
 
-        print(f"💾 Saving RAW μ-law audio with {len(audio_data)} chunks")
+        print(f"🧠 PROCESSING CALL: {call_sid}")
+
+        # ---------------------------------------------------
+        # Create filenames
+        # ---------------------------------------------------
+        raw_filename = f"{call_sid}.ulaw"
+        wav_filename = f"{call_sid}.wav"
+
+        # ---------------------------------------------------
+        # Save μ-law audio
+        # ---------------------------------------------------
+        print(
+            f"💾 Saving μ-law audio "
+            f"({len(audio_data)} chunks)"
+        )
 
         with open(raw_filename, "wb") as f:
 
@@ -158,10 +299,8 @@ def process_call_audio(audio_data):
         print("✅ RAW AUDIO SAVED")
 
         # ---------------------------------------------------
-        # Convert μ-law -> WAV using ffmpeg
+        # Convert μ-law -> WAV
         # ---------------------------------------------------
-        wav_filename = "call.wav"
-
         command = [
             "ffmpeg",
             "-f", "mulaw",
@@ -186,7 +325,7 @@ def process_call_audio(audio_data):
         # ---------------------------------------------------
         # Transcription
         # ---------------------------------------------------
-        print("🧠 Starting transcription...")
+        print("🧠 STARTING TRANSCRIPTION")
 
         with open(wav_filename, "rb") as audio_file:
 
@@ -198,24 +337,34 @@ def process_call_audio(audio_data):
         transcript_text = transcript.text
 
         print("📄 TRANSCRIPT:")
-
         print(transcript_text)
 
         # ---------------------------------------------------
         # Structured extraction
         # ---------------------------------------------------
-        extract_lead_info(transcript_text)
+        lead_data = extract_lead_info(
+            transcript_text
+        )
+
+        # ---------------------------------------------------
+        # Save to database
+        # ---------------------------------------------------
+        save_call_record(
+            metadata=metadata,
+            transcript=transcript_text,
+            lead_data=lead_data
+        )
+
+        print("✅ CALL PIPELINE COMPLETE")
 
     except Exception as e:
 
         print("❌ PROCESSING ERROR")
-
         print(type(e))
-
         print(str(e))
 
 # ---------------------------------------------------
-# Extract structured lead data
+# GPT structured extraction
 # ---------------------------------------------------
 def extract_lead_info(transcript_text):
 
@@ -223,6 +372,9 @@ def extract_lead_info(transcript_text):
 
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
+            response_format={
+                "type": "json_object"
+            },
             messages=[
                 {
                     "role": "system",
@@ -237,6 +389,7 @@ Fields:
 - issue
 - intent
 - urgency
+- summary
 """
                 },
                 {
@@ -246,16 +399,84 @@ Fields:
             ]
         )
 
-        result = response.choices[0].message.content
+        result = response.choices[
+            0
+        ].message.content
+
+        parsed = json.loads(result)
 
         print("📋 EXTRACTED LEAD INFO:")
+        print(json.dumps(parsed, indent=2))
 
-        print(result)
+        return parsed
 
     except Exception as e:
 
         print("❌ EXTRACTION ERROR")
-
         print(type(e))
+        print(str(e))
 
+        return {}
+
+# ---------------------------------------------------
+# Persist call data
+# ---------------------------------------------------
+def save_call_record(
+    metadata,
+    transcript,
+    lead_data
+):
+
+    try:
+
+        record = {
+            "call_sid": metadata.get(
+                "call_sid"
+            ),
+            "stream_sid": metadata.get(
+                "stream_sid"
+            ),
+            "from_number": metadata.get(
+                "from_number"
+            ),
+            "to_number": metadata.get(
+                "to_number"
+            ),
+            "started_at": metadata.get(
+                "started_at"
+            ),
+            "transcript": transcript,
+            "lead_data": lead_data
+        }
+
+        print("💾 SAVING CALL RECORD")
+
+        print(json.dumps(
+            record,
+            indent=2
+        ))
+
+        # ---------------------------------------------------
+        # Save to Supabase
+        # ---------------------------------------------------
+        if supabase:
+
+            response = supabase.table(
+                "calls"
+            ).insert(record).execute()
+
+            print("✅ SAVED TO SUPABASE")
+
+            print(response)
+
+        else:
+
+            print(
+                "⚠️ NO DATABASE CONNECTED"
+            )
+
+    except Exception as e:
+
+        print("❌ DATABASE SAVE ERROR")
+        print(type(e))
         print(str(e))
