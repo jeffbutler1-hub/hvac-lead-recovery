@@ -5,12 +5,6 @@ from openai import OpenAI
 import os
 import json
 import base64
-import wave
-import threading
-
-import subprocess
-
-print(subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True).stdout)
 
 app = FastAPI()
 
@@ -118,13 +112,7 @@ async def ws(websocket: WebSocket):
 
                 print("⏹ STREAM STOPPED")
 
-                filename = save_wav()
-
-                # Run transcription in background
-                threading.Thread(
-                    target=transcribe_audio,
-                    args=(filename,)
-                ).start()
+                save_raw_audio()
 
                 break
 
@@ -141,78 +129,18 @@ async def ws(websocket: WebSocket):
         print(str(e))
 
 # ---------------------------------------------------
-# Save WAV file
+# Save raw μ-law audio
 # ---------------------------------------------------
-def save_wav():
+def save_raw_audio():
 
     global audio_chunks
 
+    filename = "call.ulaw"
+
     print(f"💾 Saving RAW μ-law audio with {len(audio_chunks)} chunks")
 
-    # ---------------------------------------------------
-    # Save raw μ-law audio
-    # ---------------------------------------------------
-    raw_filename = "call.ulaw"
-
-    with open(raw_filename, "wb") as f:
+    with open(filename, "wb") as f:
 
         f.write(b"".join(audio_chunks))
 
-    print("✅ RAW μ-law FILE SAVED")
-
-    # ---------------------------------------------------
-    # Convert μ-law -> WAV using ffmpeg
-    # ---------------------------------------------------
-    wav_filename = "call.wav"
-
-    import subprocess
-
-    command = [
-        "ffmpeg",
-        "-f", "mulaw",
-        "-ar", "8000",
-        "-ac", "1",
-        "-i", raw_filename,
-        wav_filename,
-        "-y"
-    ]
-
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True
-    )
-
-    print("🎵 FFMPEG CONVERSION COMPLETE")
-
-    if result.stderr:
-        print(result.stderr)
-
-    return wav_filename
-    
-# ---------------------------------------------------
-# Background transcription
-# ---------------------------------------------------
-def transcribe_audio(filename):
-
-    print("🧠 Starting background transcription...")
-
-    try:
-
-        with open(filename, "rb") as audio_file:
-
-            transcript = client.audio.transcriptions.create(
-                model="gpt-4o-mini-transcribe",
-                file=audio_file
-            )
-
-        print("📄 TRANSCRIPT:")
-        print(transcript.text)
-
-    except Exception as e:
-
-        print("❌ TRANSCRIPTION ERROR")
-
-        print(type(e))
-
-        print(str(e))
+    print("✅ RAW AUDIO SAVED")
