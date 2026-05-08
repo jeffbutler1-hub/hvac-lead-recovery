@@ -1,45 +1,54 @@
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import PlainTextResponse
+
 from openai import OpenAI
+from supabase import create_client
+from twilio.rest import Client as TwilioClient
 
 import os
 import json
 import base64
 import subprocess
 import threading
+
 from datetime import datetime
 
 # ---------------------------------------------------
-# OPTIONAL DATABASE SUPPORT (SUPABASE)
-# ---------------------------------------------------
-# pip install supabase
-#
-# Add these environment variables:
-# SUPABASE_URL=
-# SUPABASE_KEY=
-# ---------------------------------------------------
-
-from supabase import create_client
-
-# ---------------------------------------------------
-# FastAPI app
+# FastAPI App
 # ---------------------------------------------------
 app = FastAPI()
 
 print("🚀 HVAC LEAD RECOVERY APP LOADED")
 
 # ---------------------------------------------------
-# OpenAI client
+# OpenAI Client
 # ---------------------------------------------------
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
 # ---------------------------------------------------
-# Supabase client
+# Twilio SMS Client
 # ---------------------------------------------------
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+twilio_client = TwilioClient(
+    os.getenv("TWILIO_ACCOUNT_SID"),
+    os.getenv("TWILIO_AUTH_TOKEN")
+)
+
+TWILIO_SMS_NUMBER = os.getenv(
+    "TWILIO_SMS_NUMBER"
+)
+
+# ---------------------------------------------------
+# Supabase Client
+# ---------------------------------------------------
+SUPABASE_URL = os.getenv(
+    "SUPABASE_URL"
+)
+
+SUPABASE_KEY = os.getenv(
+    "SUPABASE_KEY"
+)
 
 supabase = None
 
@@ -57,13 +66,21 @@ else:
     print("⚠️ SUPABASE NOT CONFIGURED")
 
 # ---------------------------------------------------
-# ACTIVE CALL STORAGE
-# Prevents cross-call contamination
+# Active Calls
+# Prevents concurrent call collisions
 # ---------------------------------------------------
 active_calls = {}
 
 # ---------------------------------------------------
-# Health check
+# Startup Event
+# ---------------------------------------------------
+@app.on_event("startup")
+async def startup_event():
+
+    print("🚀 APPLICATION STARTUP COMPLETE")
+
+# ---------------------------------------------------
+# Health Check
 # ---------------------------------------------------
 @app.get("/")
 async def root():
@@ -73,7 +90,7 @@ async def root():
     }
 
 # ---------------------------------------------------
-# Incoming Twilio webhook
+# Incoming Call Webhook
 # ---------------------------------------------------
 @app.post("/incoming-call")
 async def incoming_call(request: Request):
@@ -108,7 +125,7 @@ async def incoming_call(request: Request):
     )
 
 # ---------------------------------------------------
-# WebSocket endpoint
+# WebSocket Endpoint
 # ---------------------------------------------------
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -126,7 +143,7 @@ async def websocket_endpoint(websocket: WebSocket):
             msg = await websocket.receive()
 
             # ---------------------------------------------------
-            # Handle disconnect
+            # Disconnect Handling
             # ---------------------------------------------------
             if msg["type"] == "websocket.disconnect":
 
@@ -135,7 +152,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 break
 
             # ---------------------------------------------------
-            # Ignore empty frames
+            # Ignore Empty Frames
             # ---------------------------------------------------
             if "text" not in msg:
                 continue
@@ -156,14 +173,18 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 start_data = data.get("start", {})
 
-                stream_sid = start_data.get("streamSid")
+                stream_sid = start_data.get(
+                    "streamSid"
+                )
 
                 custom_params = start_data.get(
                     "customParameters",
                     {}
                 )
 
-                call_sid = custom_params.get("call_sid")
+                call_sid = custom_params.get(
+                    "call_sid"
+                )
 
                 current_call_sid = call_sid
 
@@ -172,13 +193,25 @@ async def websocket_endpoint(websocket: WebSocket):
                 print(f"StreamSid: {stream_sid}")
 
                 active_calls[call_sid] = {
+
                     "audio_chunks": [],
+
                     "chunk_count": 0,
+
                     "metadata": {
+
                         "call_sid": call_sid,
+
                         "stream_sid": stream_sid,
-                        "from_number": custom_params.get("from"),
-                        "to_number": custom_params.get("to"),
+
+                        "from_number": custom_params.get(
+                            "from"
+                        ),
+
+                        "to_number": custom_params.get(
+                            "to"
+                        ),
+
                         "started_at": datetime.utcnow().isoformat()
                     }
                 }
@@ -193,7 +226,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 payload = data["media"]["payload"]
 
-                chunk = base64.b64decode(payload)
+                chunk = base64.b64decode(
+                    payload
+                )
 
                 active_calls[current_call_sid][
                     "audio_chunks"
@@ -240,7 +275,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 ].copy()
 
                 # ---------------------------------------------------
-                # Process asynchronously
+                # Process in Background Thread
                 # ---------------------------------------------------
                 threading.Thread(
                     target=process_call_audio,
@@ -251,7 +286,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 ).start()
 
                 # ---------------------------------------------------
-                # Cleanup memory
+                # Cleanup
                 # ---------------------------------------------------
                 del active_calls[current_call_sid]
 
@@ -268,7 +303,7 @@ async def websocket_endpoint(websocket: WebSocket):
         print(str(e))
 
 # ---------------------------------------------------
-# Main audio processing pipeline
+# Main Audio Pipeline
 # ---------------------------------------------------
 def process_call_audio(audio_data, metadata):
 
@@ -279,13 +314,14 @@ def process_call_audio(audio_data, metadata):
         print(f"🧠 PROCESSING CALL: {call_sid}")
 
         # ---------------------------------------------------
-        # Create filenames
+        # Filenames
         # ---------------------------------------------------
         raw_filename = f"{call_sid}.ulaw"
+
         wav_filename = f"{call_sid}.wav"
 
         # ---------------------------------------------------
-        # Save μ-law audio
+        # Save μ-law Audio
         # ---------------------------------------------------
         print(
             f"💾 Saving μ-law audio "
@@ -302,12 +338,19 @@ def process_call_audio(audio_data, metadata):
         # Convert μ-law -> WAV
         # ---------------------------------------------------
         command = [
+
             "ffmpeg",
+
             "-f", "mulaw",
+
             "-ar", "8000",
+
             "-ac", "1",
+
             "-i", raw_filename,
+
             wav_filename,
+
             "-y"
         ]
 
@@ -320,6 +363,7 @@ def process_call_audio(audio_data, metadata):
         print("🎵 FFMPEG CONVERSION COMPLETE")
 
         if result.stderr:
+
             print(result.stderr)
 
         # ---------------------------------------------------
@@ -330,7 +374,9 @@ def process_call_audio(audio_data, metadata):
         with open(wav_filename, "rb") as audio_file:
 
             transcript = client.audio.transcriptions.create(
+
                 model="gpt-4o-mini-transcribe",
+
                 file=audio_file
             )
 
@@ -340,20 +386,76 @@ def process_call_audio(audio_data, metadata):
         print(transcript_text)
 
         # ---------------------------------------------------
-        # Structured extraction
+        # Structured Extraction
         # ---------------------------------------------------
         lead_data = extract_lead_info(
             transcript_text
         )
 
         # ---------------------------------------------------
-        # Save to database
+        # Lookup Contractor
+        # ---------------------------------------------------
+        contractor = get_contractor_by_twilio_number(
+            metadata.get("to_number")
+        )
+
+        contractor_id = None
+
+        if contractor:
+
+            contractor_id = contractor["id"]
+
+            print(
+                f"🏢 CONTRACTOR: "
+                f"{contractor['business_name']}"
+            )
+
+        else:
+
+            print(
+                "⚠️ NO CONTRACTOR FOUND"
+            )
+
+        # ---------------------------------------------------
+        # Save Call Record
         # ---------------------------------------------------
         save_call_record(
+
+            contractor_id=contractor_id,
+
             metadata=metadata,
+
             transcript=transcript_text,
+
             lead_data=lead_data
         )
+
+        # ---------------------------------------------------
+        # Send SMS Notification
+        # ---------------------------------------------------
+        if contractor:
+
+            send_sms_notification(
+
+                contractor_number=contractor[
+                    "notification_phone"
+                ],
+
+                contractor_name=contractor[
+                    "business_name"
+                ],
+
+                metadata=metadata,
+
+                lead_data=lead_data
+            )
+
+        else:
+
+            print(
+                "⚠️ SKIPPING SMS - "
+                "NO CONTRACTOR FOUND"
+            )
 
         print("✅ CALL PIPELINE COMPLETE")
 
@@ -364,20 +466,25 @@ def process_call_audio(audio_data, metadata):
         print(str(e))
 
 # ---------------------------------------------------
-# GPT structured extraction
+# GPT Structured Extraction
 # ---------------------------------------------------
 def extract_lead_info(transcript_text):
 
     try:
 
         response = client.chat.completions.create(
+
             model="gpt-4.1-mini",
+
             response_format={
                 "type": "json_object"
             },
+
             messages=[
+
                 {
                     "role": "system",
+
                     "content": """
 You extract HVAC lead information.
 
@@ -392,8 +499,10 @@ Fields:
 - summary
 """
                 },
+
                 {
                     "role": "user",
+
                     "content": transcript_text
                 }
             ]
@@ -406,22 +515,70 @@ Fields:
         parsed = json.loads(result)
 
         print("📋 EXTRACTED LEAD INFO:")
-        print(json.dumps(parsed, indent=2))
+
+        print(
+            json.dumps(
+                parsed,
+                indent=2
+            )
+        )
 
         return parsed
 
     except Exception as e:
 
         print("❌ EXTRACTION ERROR")
+
         print(type(e))
         print(str(e))
 
         return {}
 
 # ---------------------------------------------------
-# Persist call data
+# Contractor Lookup
+# ---------------------------------------------------
+def get_contractor_by_twilio_number(
+    twilio_number
+):
+
+    try:
+
+        response = supabase.table(
+            "contractors"
+        ).select("*").eq(
+            "twilio_number",
+            twilio_number
+        ).execute()
+
+        data = response.data
+
+        if not data:
+
+            return None
+
+        contractor = data[0]
+
+        print("🏢 CONTRACTOR FOUND")
+
+        print(contractor)
+
+        return contractor
+
+    except Exception as e:
+
+        print("❌ CONTRACTOR LOOKUP ERROR")
+
+        print(type(e))
+        print(str(e))
+
+        return None
+
+# ---------------------------------------------------
+# Save Call Record
 # ---------------------------------------------------
 def save_call_record(
+
+    contractor_id,
     metadata,
     transcript,
     lead_data
@@ -430,31 +587,42 @@ def save_call_record(
     try:
 
         record = {
+
+            "contractor_id": contractor_id,
+
             "call_sid": metadata.get(
                 "call_sid"
             ),
+
             "stream_sid": metadata.get(
                 "stream_sid"
             ),
+
             "from_number": metadata.get(
                 "from_number"
             ),
+
             "to_number": metadata.get(
                 "to_number"
             ),
+
             "started_at": metadata.get(
                 "started_at"
             ),
+
             "transcript": transcript,
+
             "lead_data": lead_data
         }
 
         print("💾 SAVING CALL RECORD")
 
-        print(json.dumps(
-            record,
-            indent=2
-        ))
+        print(
+            json.dumps(
+                record,
+                indent=2
+            )
+        )
 
         # ---------------------------------------------------
         # Save to Supabase
@@ -478,5 +646,62 @@ def save_call_record(
     except Exception as e:
 
         print("❌ DATABASE SAVE ERROR")
+
+        print(type(e))
+        print(str(e))
+
+# ---------------------------------------------------
+# SMS Notification
+# ---------------------------------------------------
+def send_sms_notification(
+
+    contractor_number,
+    contractor_name,
+    metadata,
+    lead_data
+):
+
+    try:
+
+        sms_body = f"""
+🔥 New Lead for {contractor_name}
+
+Customer:
+{lead_data.get('customer_name', 'Unknown')}
+
+Phone:
+{lead_data.get('phone_number', metadata.get('from_number'))}
+
+Issue:
+{lead_data.get('issue', 'Unknown')}
+
+Urgency:
+{lead_data.get('urgency', 'Unknown')}
+
+Summary:
+{lead_data.get('summary', 'No summary')}
+"""
+
+        print("📲 SENDING SMS")
+
+        print(sms_body)
+
+        message = twilio_client.messages.create(
+
+            body=sms_body,
+
+            from_=TWILIO_SMS_NUMBER,
+
+            to=contractor_number
+        )
+
+        print("✅ SMS SENT")
+
+        print(message.sid)
+
+    except Exception as e:
+
+        print("❌ SMS ERROR")
+
         print(type(e))
         print(str(e))
