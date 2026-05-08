@@ -147,22 +147,49 @@ def save_wav():
 
     global audio_chunks
 
-    filename = "call.wav"
+    print(f"💾 Saving RAW μ-law audio with {len(audio_chunks)} chunks")
 
-    print(f"💾 Saving WAV with {len(audio_chunks)} chunks")
+    # ---------------------------------------------------
+    # Save raw μ-law audio
+    # ---------------------------------------------------
+    raw_filename = "call.ulaw"
 
-    with wave.open(filename, "wb") as wf:
+    with open(raw_filename, "wb") as f:
 
-        wf.setnchannels(1)
-        wf.setsampwidth(1)
-        wf.setframerate(8000)
+        f.write(b"".join(audio_chunks))
 
-        wf.writeframes(b"".join(audio_chunks))
+    print("✅ RAW μ-law FILE SAVED")
 
-    print("✅ WAV SAVED")
+    # ---------------------------------------------------
+    # Convert μ-law -> WAV using ffmpeg
+    # ---------------------------------------------------
+    wav_filename = "call.wav"
 
-    return filename
+    import subprocess
 
+    command = [
+        "ffmpeg",
+        "-f", "mulaw",
+        "-ar", "8000",
+        "-ac", "1",
+        "-i", raw_filename,
+        wav_filename,
+        "-y"
+    ]
+
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True
+    )
+
+    print("🎵 FFMPEG CONVERSION COMPLETE")
+
+    if result.stderr:
+        print(result.stderr)
+
+    return wav_filename
+    
 # ---------------------------------------------------
 # Background transcription
 # ---------------------------------------------------
