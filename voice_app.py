@@ -47,7 +47,7 @@ twilio_client = TwilioClient(
 )
 
 TWILIO_SMS_NUMBER = os.getenv(
-    "TWILIO_SMS_NUMBER"
+    "TOLL_FREE_NUMBER"
 )
 
 # ---------------------------------------------------
@@ -538,6 +538,15 @@ recommended_action examples:
 - schedule estimate
 - routine follow-up
 
+Emergency should only be true for:
+- flooding
+- gas leaks
+- dangerous temperatures
+- medical/safety situations
+- severe property damage
+
+A broken AC alone is not automatically an emergency.
+
 Use reasonable operational judgment.
 """
                 },
@@ -715,7 +724,7 @@ Action:
 {lead_data.get('recommended_action', 'Unknown')}
 
 Phone:
-{lead_data.get('phone_number', metadata.get('from_number'))}
+{lead_data.get('phone_number') or metadata.get('from_number')}
 """
 
         logger.info("📲 SENDING SMS")
