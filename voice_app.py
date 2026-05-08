@@ -119,7 +119,7 @@ async def ws(websocket: WebSocket):
                 audio_copy = audio_chunks.copy()
                 
                 threading.Thread(
-                    target=process_call_audio
+                    target=process_call_audio,
                     args=(audio_copy,)
                 ).start()
 
