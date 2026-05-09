@@ -288,8 +288,24 @@ async def handle_response(request: Request):
     elif step == "phone":
 
         session["answers"]["phone_number"] = speech_result
-    
-        elif step == "confirm_phone":
+
+        session["step"] = "confirm_phone"
+
+        gather = Gather(
+            input="speech",
+            action="/handle-response",
+            method="POST",
+            speechTimeout="auto"
+        )
+
+        gather.say(
+            f"Just to confirm, the best callback "
+            f"number is {speech_result}, correct?"
+        )
+
+        response.append(gather)
+
+    elif step == "confirm_phone":
 
         session["answers"]["phone_confirmation"] = speech_result
 
@@ -308,7 +324,9 @@ async def handle_response(request: Request):
             "schedule a visit?"
         )
 
-        elif step == "availability":
+        response.append(gather)
+
+    elif step == "availability":
 
         session["answers"]["availability"] = speech_result
 
