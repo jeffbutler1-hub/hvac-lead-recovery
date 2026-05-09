@@ -1,3 +1,5 @@
+call_sessions = {}
+
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import PlainTextResponse
 
@@ -106,32 +108,140 @@ async def root():
 @app.post("/incoming-call")
 async def incoming_call(request: Request):
 
-    logger.info("📞 INCOMING CALL RECEIVED")
+    form = await request.form()
+
+    call_sid = form.get("CallSid")
+
+    from_number = form.get("From")
+
+    call_sessions[call_sid] = {
+        "step": "name",
+        "from_number": from_number,
+        "answers": {}
+    }
+
+    response = VoiceResponse()
+
+    gather = Gather(
+        input="speech",
+        action="/handle-response",
+        method="POST",
+        speechTimeout="auto"
+    )
+
+    gather.say(
+        "Thanks for calling HVAC Services. "
+        "Can I get your name?"
+    )
+
+    response.append(gather)
+
+    return HTMLResponse(
+        content=str(response),
+        media_type="application/xml"
+    )
+
+# ---------------------------------------------------
+# WebSocket Endpoint
+# ---------------------------------------------------
+
+@app.post("/handle-response")
+async def handle_response(request: Request):
 
     form = await request.form()
 
-    from_number = form.get("From")
-    to_number = form.get("To")
     call_sid = form.get("CallSid")
 
-    logger.info(f"Caller: {from_number}")
-    logger.info(f"Business Line: {to_number}")
-    logger.info(f"CallSid: {call_sid}")
+    speech_result = form.get("SpeechResult")
 
-    twiml = f"""
-<Response>
-    <Connect>
-        <Stream url="wss://hvac-lead-recovery-1.onrender.com/ws">
-            <Parameter name="from" value="{from_number}" />
-            <Parameter name="to" value="{to_number}" />
-            <Parameter name="call_sid" value="{call_sid}" />
-        </Stream>
-    </Connect>
-</Response>
-"""
+    session = call_sessions.get(call_sid)
 
-    return PlainTextResponse(
-        content=twiml,
+    response = VoiceResponse()
+
+    if not session:
+
+        response.say(
+            "Sorry, something went wrong."
+        )
+
+        return HTMLResponse(
+            content=str(response),
+            media_type="application/xml"
+        )
+
+    step = session["step"]
+
+    if step == "name":
+
+        session["answers"]["name"] = speech_result
+
+        session["step"] = "issue"
+
+        gather = Gather(
+            input="speech",
+            action="/handle-response",
+            method="POST",
+            speechTimeout="auto"
+        )
+
+        gather.say(
+            "Can you briefly describe the issue?"
+        )
+
+        response.append(gather)
+
+    elif step == "issue":
+
+        session["answers"]["issue"] = speech_result
+
+        session["step"] = "urgency"
+
+        gather = Gather(
+            input="speech",
+            action="/handle-response",
+            method="POST",
+            speechTimeout="auto"
+        )
+
+        gather.say(
+            "Is this an emergency situation?"
+        )
+
+        response.append(gather)
+
+    elif step == "urgency":
+
+        session["answers"]["urgency"] = speech_result
+
+        session["step"] = "phone"
+
+        gather = Gather(
+            input="speech",
+            action="/handle-response",
+            method="POST",
+            speechTimeout="auto"
+        )
+
+        gather.say(
+            "What is the best callback number?"
+        )
+
+        response.append(gather)
+
+    elif step == "phone":
+
+        session["answers"]["phone_number"] = speech_result
+
+        response.say(
+            "Thank you. Someone will contact you shortly."
+        )
+
+        print(session["answers"])
+
+        del call_sessions[call_sid]
+
+    return HTMLResponse(
+        content=str(response),
         media_type="application/xml"
     )
 
