@@ -197,7 +197,35 @@ async def handle_response(request: Request):
 
         session["answers"]["issue"] = speech_result
 
-        session["step"] = "urgency"
+        issue_text = speech_result.lower()
+
+        if (
+            "not cooling" in issue_text
+            or "ac is down" in issue_text
+            or "air conditioning" in issue_text
+        ):
+
+            session["issue_type"] = "cooling"
+
+        elif (
+            "water" in issue_text
+            or "leak" in issue_text
+        ):
+
+            session["issue_type"] = "leak"
+
+        elif (
+            "install" in issue_text
+            or "replace" in issue_text
+        ):
+
+            session["issue_type"] = "installation"
+
+        else:
+
+            session["issue_type"] = "general"
+
+        session["step"] = "clarification"
 
         gather = Gather(
             input="speech",
@@ -206,15 +234,41 @@ async def handle_response(request: Request):
             speechTimeout="auto"
         )
 
-        gather.say(
-            "Is this an emergency situation?"
-        )
+        if session["issue_type"] == "cooling":
+
+            gather.say(
+                "Got it. Is the system completely "
+                "not turning on, or is it running "
+                "but not cooling properly?"
+            )
+
+        elif session["issue_type"] == "leak":
+
+            gather.say(
+                "Understood. Is the leak actively "
+                "getting worse right now?"
+            )
+
+        elif session["issue_type"] == "installation":
+
+            gather.say(
+                "Okay. Are you looking to replace "
+                "an existing system or install "
+                "something new?"
+            )
+
+        else:
+
+            gather.say(
+                "Can you tell me a little more "
+                "about what's going on?"
+            )
 
         response.append(gather)
 
-    elif step == "urgency":
+    elif step == "clarification":
 
-        session["answers"]["urgency"] = speech_result
+        session["answers"]["clarification"] = speech_result
 
         session["step"] = "phone"
 
@@ -226,22 +280,47 @@ async def handle_response(request: Request):
         )
 
         gather.say(
-            "What is the best callback number?"
+            "Thanks. What is the best callback number?"
         )
 
         response.append(gather)
-
+    
     elif step == "phone":
 
         session["answers"]["phone_number"] = speech_result
+    
+    elif step == "confirm_phone":
 
-        response.say(
-            "Thank you. Someone will contact you shortly."
-        )
+    session["answers"]["phone_confirmation"] = speech_result
 
-        print(session["answers"])
+    session["step"] = "availability"
 
-        del call_sessions[call_sid]
+    gather = Gather(
+        input="speech",
+        action="/handle-response",
+        method="POST",
+        speechTimeout="auto"
+    )
+
+    gather.say(
+        "Do you have a preferred time "
+        "window if someone needs to "
+        "schedule a visit?"
+    )
+
+    elif step == "availability":
+
+    session["answers"]["availability"] = speech_result
+
+    response.say(
+        "Thanks. I've passed everything "
+        "along to the team and someone "
+        "should reach out shortly."
+    )
+
+    print(session["answers"])
+
+    del call_sessions[call_sid]
 
     return HTMLResponse(
         content=str(response),
