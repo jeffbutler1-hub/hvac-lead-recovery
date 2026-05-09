@@ -289,38 +289,38 @@ async def handle_response(request: Request):
 
         session["answers"]["phone_number"] = speech_result
     
-    elif step == "confirm_phone":
+        elif step == "confirm_phone":
 
-    session["answers"]["phone_confirmation"] = speech_result
+        session["answers"]["phone_confirmation"] = speech_result
 
-    session["step"] = "availability"
+        session["step"] = "availability"
 
-    gather = Gather(
-        input="speech",
-        action="/handle-response",
-        method="POST",
-        speechTimeout="auto"
-    )
+        gather = Gather(
+            input="speech",
+            action="/handle-response",
+            method="POST",
+            speechTimeout="auto"
+        )
 
-    gather.say(
-        "Do you have a preferred time "
-        "window if someone needs to "
-        "schedule a visit?"
-    )
+        gather.say(
+            "Do you have a preferred time "
+            "window if someone needs to "
+            "schedule a visit?"
+        )
 
-    elif step == "availability":
+        elif step == "availability":
 
-    session["answers"]["availability"] = speech_result
+        session["answers"]["availability"] = speech_result
 
-    response.say(
-        "Thanks. I've passed everything "
-        "along to the team and someone "
-        "should reach out shortly."
-    )
+        response.say(
+            "Thanks. I've passed everything "
+            "along to the team and someone "
+            "should reach out shortly."
+        )
 
-    print(session["answers"])
+        print(session["answers"])
 
-    del call_sessions[call_sid]
+        del call_sessions[call_sid]
 
     return HTMLResponse(
         content=str(response),
