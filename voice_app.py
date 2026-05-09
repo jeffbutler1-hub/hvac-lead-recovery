@@ -3,6 +3,8 @@ call_sessions = {}
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import PlainTextResponse
 
+from twilio.twiml.voice_response import VoiceResponse, Gather
+
 from openai import OpenAI
 from supabase import create_client
 from twilio.rest import Client as TwilioClient
