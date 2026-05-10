@@ -16,6 +16,7 @@ import base64
 import subprocess
 import threading
 import logging
+import re
 
 from datetime import datetime
 
@@ -171,6 +172,53 @@ You must include this exact required question:
 
     return completion.choices[0].message.content
 
+def generate_clarification_question(issue_text):
+
+    prompt = f"""
+You are an HVAC intake assistant.
+
+The customer described their issue as:
+
+"{issue_text}"
+
+Generate ONE short follow-up clarification question.
+
+Rules:
+- Sound conversational
+- Sound operationally competent
+- Keep it under 1 sentence
+- Ask something genuinely useful for an HVAC technician
+- Do not sound robotic
+- Do not ramble
+- Do not ask multiple questions
+"""
+
+    completion = client.chat.completions.create(
+        model="gpt-4.1-mini",
+
+        messages=[
+            {
+                "role": "system",
+                "content": prompt
+            }
+        ],
+
+        temperature=0.5
+    )
+
+    return completion.choices[0].message.content
+
+def extract_phone_number(text):
+
+    digits = re.sub(r"\D", "", text)
+
+    if len(digits) == 10:
+        return digits
+
+    if len(digits) == 11 and digits.startswith("1"):
+        return digits[1:]
+
+    return None
 # ---------------------------------------------------
 # Incoming Call Webhook
 # ---------------------------------------------------
@@ -195,7 +243,7 @@ async def incoming_call(request: Request):
         input="speech",
         action="/handle-response",
         method="POST",
-        speechTimeout="auto"
+        speechTimeout="2"
     )
 
     gather.say(
@@ -250,7 +298,7 @@ async def handle_response(request: Request):
             input="speech",
             action="/handle-response",
             method="POST",
-            speechTimeout="auto"
+            speechTimeout="2"
         )
 
         gather.say(
@@ -297,38 +345,16 @@ async def handle_response(request: Request):
             input="speech",
             action="/handle-response",
             method="POST",
-            speechTimeout="auto"
+            speechTimeout="2"
         )
 
-        if session["issue_type"] == "cooling":
+        clarification_question = generate_clarification_question(
+            speech_result
+        )
 
-            gather.say(
-                "Okay, thanks. Would you say the "
-                "system is completely not turning on, "
-                "or is it still running but not cooling?"
-            )
+        print(clarification_question)
 
-        elif session["issue_type"] == "leak":
-
-            gather.say(
-                "Understood. Is the leak actively "
-                "getting worse right now?"
-            )
-
-        elif session["issue_type"] == "installation":
-
-            gather.say(
-                "Okay. Are you looking to replace "
-                "an existing system or install "
-                "something new?"
-            )
-
-        else:
-
-            gather.say(
-                "Can you tell me a little more "
-                "about what's going on?"
-            )
+        gather.say(clarification_question)
 
         response.append(gather)
 
@@ -342,7 +368,7 @@ async def handle_response(request: Request):
             input="speech",
             action="/handle-response",
             method="POST",
-            speechTimeout="auto"
+            speechTimeout="2"
         )
 
         ai_response = generate_ai_response(
@@ -359,7 +385,17 @@ async def handle_response(request: Request):
     
     elif step == "phone":
 
-        session["answers"]["phone_number"] = speech_result
+        parsed_number = extract_phone_number(
+            speech_result
+        )
+
+        if parsed_number:
+
+            session["answers"]["phone_number"] = parsed_number
+
+        else:
+
+            session["answers"]["phone_number"] = speech_result
 
         session["step"] = "confirm_phone"
 
@@ -367,7 +403,7 @@ async def handle_response(request: Request):
             input="speech",
             action="/handle-response",
             method="POST",
-            speechTimeout="auto"
+            speechTimeout="2"
         )
 
         gather.say(
@@ -393,7 +429,7 @@ async def handle_response(request: Request):
                 input="speech",
                 action="/handle-response",
                 method="POST",
-                speechTimeout="auto"
+                speechTimeout="2"
             )
 
             ai_response = generate_ai_response(
@@ -420,7 +456,7 @@ async def handle_response(request: Request):
                 input="speech",
                 action="/handle-response",
                 method="POST",
-                speechTimeout="auto"
+                speechTimeout="2"
             )
 
             gather.say(
@@ -436,11 +472,15 @@ async def handle_response(request: Request):
         session["answers"]["availability"] = speech_result
 
         response.say(
-            f"Okay, I’ve noted that "
-            f"{speech_result} works best. "
-            f"The team will check availability "
-            f"and reach back out to confirm scheduling."
+            f"Perfect — I’ve got everything I need. "
+            f"The team will review this and reach "
+            f"back out to confirm scheduling. "
+            f"Thanks for calling."
         )
+
+        response.pause(length=1)
+
+        response.hangup()
 
         print(session["answers"])
 
