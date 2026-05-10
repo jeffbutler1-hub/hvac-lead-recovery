@@ -231,9 +231,12 @@ async def incoming_call(request: Request):
 
     from_number = form.get("From")
 
+    to_number = form.get("To")
+
     call_sessions[call_sid] = {
         "step": "name",
         "from_number": from_number,
+        "to_number": to_number,
         "answers": {}
     }
 
@@ -470,6 +473,88 @@ async def handle_response(request: Request):
     elif step == "availability":
 
         session["answers"]["availability"] = speech_result
+
+        lead_data = {
+
+            "customer_name":
+                session["answers"].get("name"),
+
+            "phone_number":
+                session["answers"].get("phone_number"),
+
+            "issue":
+                session["answers"].get("issue"),
+
+            "clarification":
+                session["answers"].get("clarification"),
+
+            "availability":
+                session["answers"].get("availability"),
+
+            "urgency": "medium",
+
+            "call_type": "repair",
+
+            "lead_value": "medium",
+
+            "recommended_action": "callback ASAP"
+        }
+
+        contractor = get_contractor_by_twilio_number(
+            session["to_number"]
+        )
+
+        contractor_id = None
+
+        if contractor:
+
+            contractor_id = contractor["id"]
+
+        save_call_record(
+
+            contractor_id=contractor_id,
+
+            metadata={
+
+                "call_sid": call_sid,
+
+                "from_number":
+                    session["from_number"],
+
+                "to_number":
+                    session["to_number"],
+
+                "started_at":
+                    datetime.utcnow().isoformat()
+            },
+
+            transcript=json.dumps(
+                session["answers"],
+                indent=2
+            ),
+
+            lead_data=lead_data
+        )
+
+        if contractor:
+
+            send_sms_notification(
+
+                contractor_number=contractor[
+                    "notification_phone"
+                ],
+
+                contractor_name=contractor[
+                    "business_name"
+                ],
+
+                metadata={
+                    "from_number":
+                        session["from_number"]
+                },
+
+                lead_data=lead_data
+            )
 
         response.say(
             f"Perfect — I’ve got everything I need. "
