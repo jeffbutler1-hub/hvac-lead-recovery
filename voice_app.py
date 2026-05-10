@@ -106,6 +106,61 @@ async def root():
     }
 
 # ---------------------------------------------------
+# AI Conversation
+# ---------------------------------------------------
+
+def generate_ai_response(
+    stage,
+    answers,
+    latest_response
+):
+
+    prompt = f"""
+You are a professional HVAC intake assistant.
+
+Your job is to:
+- sound calm
+- sound conversational
+- sound competent
+- be concise
+- avoid sounding robotic
+- avoid fake empathy
+- keep the call moving efficiently
+
+Current conversation stage:
+{stage}
+
+Information collected so far:
+{answers}
+
+Latest caller response:
+{latest_response}
+
+Generate the next short conversational response.
+
+The response should:
+- acknowledge the caller naturally
+- ask the next needed question
+- sound warm and professional
+- avoid long explanations
+"""
+
+    completion = client.chat.completions.create(
+        model="gpt-4.1-mini",
+
+        messages=[
+            {
+                "role": "system",
+                "content": prompt
+            }
+        ],
+
+        temperature=0.7
+    )
+
+    return completion.choices[0].message.content
+
+# ---------------------------------------------------
 # Incoming Call Webhook
 # ---------------------------------------------------
 @app.post("/incoming-call")
@@ -279,9 +334,15 @@ async def handle_response(request: Request):
             speechTimeout="auto"
         )
 
-        gather.say(
-            "Thanks. What is the best callback number?"
+        ai_response = generate_ai_response(
+            stage="phone",
+            answers=session["answers"],
+            latest_response=speech_result
         )
+
+        print(ai_response)
+
+        gather.say(ai_response)
 
         response.append(gather)
     
