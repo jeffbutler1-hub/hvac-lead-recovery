@@ -110,39 +110,50 @@ async def root():
 # ---------------------------------------------------
 
 def generate_ai_response(
-    stage,
     answers,
-    latest_response
+    latest_response,
+    required_question
 ):
 
     prompt = f"""
-You are a professional HVAC intake assistant.
+You are a professional HVAC intake assistant for a local HVAC company.
 
 Your job is to:
 - sound calm
 - sound conversational
 - sound competent
-- be concise
+- sound efficient
 - avoid sounding robotic
 - avoid fake empathy
-- keep the call moving efficiently
+- avoid sounding like a chatbot
+- keep the call moving naturally
 
-Current conversation stage:
-{stage}
-
-Information collected so far:
+Information already collected:
 {answers}
 
 Latest caller response:
 {latest_response}
 
-Generate the next short conversational response.
+The next required question is:
+{required_question}
 
-The response should:
-- acknowledge the caller naturally
-- ask the next needed question
-- sound warm and professional
-- avoid long explanations
+Generate a short conversational response that:
+1. briefly acknowledges the caller naturally
+2. smoothly transitions into the required question
+3. includes the exact required question
+
+Guidelines:
+- Keep responses under 2 sentences
+- Do not ramble
+- Do not repeat all prior information
+- Do not over-apologize
+- Do not sound overly enthusiastic
+- Do not say phrases like "I'd be happy to help"
+- Sound like a competent intake coordinator
+
+IMPORTANT:
+You must include this exact required question:
+"{required_question}"
 """
 
     completion = client.chat.completions.create(
@@ -155,7 +166,7 @@ The response should:
             }
         ],
 
-        temperature=0.7
+        temperature=0.6
     )
 
     return completion.choices[0].message.content
@@ -335,9 +346,9 @@ async def handle_response(request: Request):
         )
 
         ai_response = generate_ai_response(
-            stage="phone",
             answers=session["answers"],
-            latest_response=speech_result
+            latest_response=speech_result,
+            required_question="What is the best callback number?"
         )
 
         print(ai_response)
