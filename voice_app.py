@@ -303,9 +303,9 @@ async def handle_response(request: Request):
         if session["issue_type"] == "cooling":
 
             gather.say(
-                "Got it. Is the system completely "
-                "not turning on, or is it running "
-                "but not cooling properly?"
+                "Okay, thanks. Would you say the "
+                "system is completely not turning on, "
+                "or is it still running but not cooling?"
             )
 
         elif session["issue_type"] == "leak":
@@ -379,33 +379,67 @@ async def handle_response(request: Request):
 
     elif step == "confirm_phone":
 
-        session["answers"]["phone_confirmation"] = speech_result
+        confirmation_text = speech_result.lower()
 
-        session["step"] = "availability"
+        if (
+            "yes" in confirmation_text
+            or "correct" in confirmation_text
+            or "that's right" in confirmation_text
+        ):
 
-        gather = Gather(
-            input="speech",
-            action="/handle-response",
-            method="POST",
-            speechTimeout="auto"
-        )
+            session["step"] = "availability"
 
-        gather.say(
-            "Do you have a preferred time "
-            "window if someone needs to "
-            "schedule a visit?"
-        )
+            gather = Gather(
+                input="speech",
+                action="/handle-response",
+                method="POST",
+                speechTimeout="auto"
+            )
 
-        response.append(gather)
+            ai_response = generate_ai_response(
+                answers=session["answers"],
+                latest_response=speech_result,
+                required_question=(
+                    "Do you have a preferred time "
+                    "window if someone needs to "
+                    "schedule a visit?"
+                )
+            )
+
+            print(ai_response)
+
+            gather.say(ai_response)
+
+            response.append(gather)
+
+        else:
+
+            session["answers"]["phone_number"] = speech_result
+
+            gather = Gather(
+                input="speech",
+                action="/handle-response",
+                method="POST",
+                speechTimeout="auto"
+            )
+
+            gather.say(
+                f"Got it. Just to confirm, "
+                f"the best callback number is "
+                f"{speech_result}, correct?"
+            )
+
+            response.append(gather)
 
     elif step == "availability":
 
         session["answers"]["availability"] = speech_result
 
         response.say(
-            "Thanks. I've passed everything "
-            "along to the team and someone "
-            "should reach out shortly."
+            f"Okay, I’ve noted that "
+            f"{speech_result} works best. "
+            f"The team will check availability "
+            f"and reach back out to confirm scheduling."
         )
 
         print(session["answers"])
