@@ -483,13 +483,14 @@ async def handle_response(request: Request):
                 speechTimeout="4"
             )
 
+            spoken_phone = format_phone_for_speech(
+                session["answers"]["phone_number"]
+            )
+
             gather.say(
-                f"Got it. Just to confirm, "
-                f"the best callback number is "
-                spoken_phone = format_phone_for_speech(
-                    session["answers"]["phone_number"]
-                )
-                f"{spoken_phone}, correct?"
+                f"Got it. Let me make sure I have that right. "
+                f"Is your callback number "
+                f"{spoken_phone}?"
             )
 
             response.append(gather)
