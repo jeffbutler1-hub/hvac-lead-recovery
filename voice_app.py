@@ -219,6 +219,62 @@ Rules:
 
     return completion.choices[0].message.content
 
+def clean_lead_data(answers):
+
+    prompt = f"""
+You are cleaning an HVAC lead record.
+
+Raw lead data:
+
+{json.dumps(answers, indent=2)}
+
+Return ONLY valid JSON.
+
+Format:
+
+{{
+  "customer_name": "...",
+  "issue_summary": "...",
+  "availability_summary": "...",
+  "service_type": "...",
+  "urgency": "..."
+}}
+
+Rules:
+
+- Remove filler words
+- Clean up customer name
+- Summarize issue in 1 sentence
+- service_type must be:
+  Repair
+  Installation
+  Maintenance
+  Billing
+  Other
+
+- urgency must be:
+  High
+  Medium
+  Low
+
+Return JSON only.
+"""
+
+    completion = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0
+    )
+
+    return json.loads(
+        completion.choices[0].message.content
+    )
+
 def extract_phone_number(text):
 
     digits = re.sub(r"\D", "", text)
@@ -516,16 +572,24 @@ async def handle_response(request: Request):
 
         session["answers"]["availability"] = speech_result
 
+        cleaned = clean_lead_data(
+            session["answers"]
+        )
+
+        print("CLEANED LEAD")
+
+        print(cleaned)
+
         lead_data = {
 
             "customer_name":
-                session["answers"].get("name"),
+                cleaned["customer_name"],
 
             "phone_number":
                 session["answers"].get("phone_number"),
 
             "issue":
-                session["answers"].get("issue"),
+                cleaned["issue_summary"],
 
             "clarification":
                 session["answers"].get("clarification"),
@@ -533,9 +597,11 @@ async def handle_response(request: Request):
             "availability":
                 session["answers"].get("availability"),
 
-            "urgency": "medium",
+            "urgency":
+                cleaned["urgency"],
 
-            "call_type": "repair",
+            "call_type":
+                cleaned["service_type"],
 
             "lead_value": "medium",
 
@@ -599,13 +665,13 @@ async def handle_response(request: Request):
             )
 
         response.say(
-            f"Perfect — I’ve got everything I need. "
-            f"The team will review this and reach "
-            f"back out to confirm scheduling. "
-            f"Thanks for calling."
+            "Perfect, I've got everything I need. "
+            "I'll pass your information along to the team, "
+            "and they'll reach back out to discuss scheduling. "
+            "Thanks for calling, and have a great day."
         )
 
-        response.pause(length=1)
+        response.pause(length=2)
 
         response.hangup()
 
