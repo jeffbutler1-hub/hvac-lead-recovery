@@ -407,10 +407,6 @@ async def handle_response(request: Request):
             speech_result
         )
 
-        parsed_number = extract_phone_number(
-            speech_result
-        )
-
         if parsed_number:
 
             session["answers"]["phone_number"] = parsed_number
@@ -468,34 +464,53 @@ async def handle_response(request: Request):
                 )
             )
 
-            print(ai_response)
-
             gather.say(ai_response)
 
             response.append(gather)
 
         else:
 
-            session["answers"]["phone_number"] = speech_result
-
-            gather = Gather(
-                input="speech",
-                action="/handle-response",
-                method="POST",
-                speechTimeout="4"
+            parsed_number = extract_phone_number(
+                speech_result
             )
 
-            spoken_phone = format_phone_for_speech(
-                session["answers"]["phone_number"]
-            )
+            if not parsed_number:
 
-            gather.say(
-                f"Got it. Let me make sure I have that right. "
-                f"Is your callback number "
-                f"{spoken_phone}?"
-            )
+                gather = Gather(
+                    input="speech",
+                    action="/handle-response",
+                    method="POST",
+                    speechTimeout="4"
+                )
 
-            response.append(gather)
+                gather.say(
+                    "Sorry, I didn't catch the phone number. "
+                    "Could you repeat it one digit at a time?"
+                )
+
+                response.append(gather)
+
+            else:
+
+                session["answers"]["phone_number"] = parsed_number
+
+                spoken_phone = format_phone_for_speech(
+                    parsed_number
+                )
+
+                gather = Gather(
+                    input="speech",
+                    action="/handle-response",
+                    method="POST",
+                    speechTimeout="4"
+                )
+
+                gather.say(
+                    f"Got it. Let me make sure I have that right. "
+                    f"Is your number {spoken_phone}?"
+                )
+
+                response.append(gather)
 
     elif step == "availability":
 
