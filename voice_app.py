@@ -233,7 +233,7 @@ def extract_phone_number(text):
 
 def format_phone_for_speech(phone):
 
-    return " ".join(phone)
+    return ", ".join(phone)
 # ---------------------------------------------------
 # Incoming Call Webhook
 # ---------------------------------------------------
@@ -407,19 +407,17 @@ async def handle_response(request: Request):
             speech_result
         )
 
+        parsed_number = extract_phone_number(
+            speech_result
+        )
+
         if parsed_number:
 
             session["answers"]["phone_number"] = parsed_number
 
         else:
 
-            parsed_number = extract_phone_number(
-                speech_result
-            )
-
-            if parsed_number:
-
-                session["answers"]["phone_number"] = parsed_number
+            session["answers"]["phone_number"] = speech_result
 
         session["step"] = "confirm_phone"
 
@@ -430,9 +428,13 @@ async def handle_response(request: Request):
             speechTimeout="4"
         )
 
+        spoken_phone = format_phone_for_speech(
+            session["answers"]["phone_number"]
+        )
+
         gather.say(
-            f"Just to confirm, the best callback "
-            f"number is {speech_result}, correct?"
+            f"Let me make sure I have that right. "
+            f"Is your number {spoken_phone}?"
         )
 
         response.append(gather)
