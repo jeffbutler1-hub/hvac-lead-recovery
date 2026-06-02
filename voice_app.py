@@ -613,7 +613,7 @@ async def handle_response(request: Request):
                 session["answers"].get("clarification"),
 
             "availability":
-                session["answers"].get("availability"),
+                cleaned["availability_summary"],
 
             "urgency":
                 cleaned["urgency"],
