@@ -234,6 +234,7 @@ Format:
 
 {{
   "customer_name": "...",
+  "phone_number": "...",
   "issue_summary": "...",
   "availability_summary": "...",
   "service_type": "...",
@@ -469,7 +470,24 @@ async def handle_response(request: Request):
 
         else:
 
-            session["answers"]["phone_number"] = speech_result
+            gather = Gather(
+                input="speech",
+                action="/handle-response",
+                method="POST",
+                speechTimeout="4"
+            )
+
+            gather.say(
+                "I didn't quite catch the phone number. "
+                "Could you repeat it one digit at a time?"
+            )
+
+            response.append(gather)
+
+            return HTMLResponse(
+                content=str(response),
+                media_type="application/xml"
+            )
 
         session["step"] = "confirm_phone"
 
@@ -586,7 +604,7 @@ async def handle_response(request: Request):
                 cleaned["customer_name"],
 
             "phone_number":
-                session["answers"].get("phone_number"),
+                cleaned["phone_number"],
 
             "issue":
                 cleaned["issue_summary"],
