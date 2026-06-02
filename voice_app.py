@@ -174,6 +174,8 @@ You must include this exact required question:
 
 def generate_clarification_question(issue_text):
 
+    start_time = datetime.utcnow()
+
     prompt = f"""
 You are an HVAC intake assistant.
 
@@ -206,6 +208,15 @@ Rules:
         temperature=0.5
     )
 
+    elapsed = (
+        datetime.utcnow() - start_time
+    ).total_seconds()
+
+    logger.info(
+        f"⏱ GPT clarification took "
+        f"{elapsed:.2f} seconds"
+    )
+
     return completion.choices[0].message.content
 
 def extract_phone_number(text):
@@ -219,6 +230,10 @@ def extract_phone_number(text):
         return digits[1:]
 
     return None
+
+def format_phone_for_speech(phone):
+
+    return " ".join(phone)
 # ---------------------------------------------------
 # Incoming Call Webhook
 # ---------------------------------------------------
@@ -246,7 +261,7 @@ async def incoming_call(request: Request):
         input="speech",
         action="/handle-response",
         method="POST",
-        speechTimeout="2"
+        speechTimeout="4"
     )
 
     gather.say(
@@ -301,7 +316,7 @@ async def handle_response(request: Request):
             input="speech",
             action="/handle-response",
             method="POST",
-            speechTimeout="2"
+            speechTimeout="4"
         )
 
         gather.say(
@@ -348,7 +363,7 @@ async def handle_response(request: Request):
             input="speech",
             action="/handle-response",
             method="POST",
-            speechTimeout="2"
+            speechTimeout="4"
         )
 
         clarification_question = generate_clarification_question(
@@ -371,7 +386,7 @@ async def handle_response(request: Request):
             input="speech",
             action="/handle-response",
             method="POST",
-            speechTimeout="2"
+            speechTimeout="4"
         )
 
         ai_response = generate_ai_response(
@@ -398,7 +413,13 @@ async def handle_response(request: Request):
 
         else:
 
-            session["answers"]["phone_number"] = speech_result
+            parsed_number = extract_phone_number(
+                speech_result
+            )
+
+            if parsed_number:
+
+                session["answers"]["phone_number"] = parsed_number
 
         session["step"] = "confirm_phone"
 
@@ -406,7 +427,7 @@ async def handle_response(request: Request):
             input="speech",
             action="/handle-response",
             method="POST",
-            speechTimeout="2"
+            speechTimeout="4"
         )
 
         gather.say(
@@ -432,7 +453,7 @@ async def handle_response(request: Request):
                 input="speech",
                 action="/handle-response",
                 method="POST",
-                speechTimeout="2"
+                speechTimeout="4"
             )
 
             ai_response = generate_ai_response(
@@ -459,13 +480,16 @@ async def handle_response(request: Request):
                 input="speech",
                 action="/handle-response",
                 method="POST",
-                speechTimeout="2"
+                speechTimeout="4"
             )
 
             gather.say(
                 f"Got it. Just to confirm, "
                 f"the best callback number is "
-                f"{speech_result}, correct?"
+                spoken_phone = format_phone_for_speech(
+                    session["answers"]["phone_number"]
+                )
+                f"{spoken_phone}, correct?"
             )
 
             response.append(gather)
