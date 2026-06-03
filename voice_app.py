@@ -107,6 +107,28 @@ async def root():
     }
 
 # ---------------------------------------------------
+# Vapi Lead Endpoint
+# ---------------------------------------------------
+@app.post("/save-lead")
+async def save_lead(request: Request):
+
+    body = await request.json()
+
+    logger.info("🎯 VAPI LEAD RECEIVED")
+
+    logger.info(
+        json.dumps(
+            body,
+            indent=2
+        )
+    )
+
+    return {
+        "success": True
+    }
+
+
+# ---------------------------------------------------
 # AI Conversation
 # ---------------------------------------------------
 
