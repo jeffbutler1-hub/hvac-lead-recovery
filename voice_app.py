@@ -1304,6 +1304,8 @@ def get_contractor_by_twilio_number(
     twilio_number
 ):
 
+    try:
+
         response = supabase.table(
             "contractors"
         ).select("*").eq(
@@ -1327,7 +1329,9 @@ def get_contractor_by_twilio_number(
 
     except Exception:
 
-        logger.exception("❌ CONTRACTOR LOOKUP ERROR")
+        logger.exception(
+            "❌ CONTRACTOR LOOKUP ERROR"
+        )
 
         return None
 
