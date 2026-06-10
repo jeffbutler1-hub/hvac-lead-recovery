@@ -1235,6 +1235,25 @@ def get_contractor_by_twilio_number(
 
     try:
 
+        logger.info("TESTING READ")
+
+        try:
+
+            test = supabase.table(
+                "calls"
+            ).select("*").limit(1).execute()
+
+            logger.info("READ SUCCESS")
+
+            logger.info(test)
+
+        except Exception:
+
+            logger.exception(
+                "READ FAILED"
+            )
+
+
         response = supabase.table(
             "contractors"
         ).select("*").eq(
