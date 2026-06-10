@@ -124,14 +124,10 @@ async def save_lead(request: Request):
         )
     )
 
-    classification = classify_lead(
-        body.get("issue", "")
-    )
+    answers = {
 
-    lead_data = {
-
-        "customer_name":
-        body.get("customer_name"),
+        "name":
+            body.get("customer_name"),
 
         "phone_number":
             body.get("phone_number"),
@@ -140,7 +136,39 @@ async def save_lead(request: Request):
             body.get("issue"),
 
         "availability":
-            body.get("availability"),
+            body.get("availability")
+    }
+
+    cleaned = clean_lead_data(
+        answers
+    )
+
+    logger.info("CLEANED LEAD")
+
+    logger.info(
+        json.dumps(
+            cleaned,
+            indent=2
+        )
+    )
+
+    classification = classify_lead(
+        body.get("issue", "")
+    )
+
+    lead_data = {
+
+        "customer_name":
+            cleaned["customer_name"],
+
+        "phone_number":
+            cleaned["phone_number"],
+
+        "issue":
+            cleaned["issue_summary"],
+
+        "availability":
+            cleaned["availability_summary"],
 
         "urgency":
             classification["urgency"],
