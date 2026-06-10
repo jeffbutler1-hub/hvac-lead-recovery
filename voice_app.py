@@ -17,6 +17,7 @@ import subprocess
 import threading
 import logging
 import re
+import uuid
 
 from datetime import datetime
 
@@ -121,6 +122,60 @@ async def save_lead(request: Request):
             body,
             indent=2
         )
+    )
+
+    lead_data = {
+
+        "customer_name":
+            body.get("customer_name"),
+
+        "phone_number":
+            body.get("phone_number"),
+
+        "issue":
+            body.get("issue"),
+
+        "availability":
+            body.get("availability"),
+
+        "urgency":
+            "medium",
+
+        "call_type":
+            "repair",
+
+        "lead_value":
+            "medium",
+
+        "recommended_action":
+            "callback ASAP"
+    }
+
+    save_call_record(
+
+        contractor_id=None,
+
+        metadata={
+
+            "call_sid":
+                f"vapi-{uuid.uuid4()}",
+
+            "from_number":
+                body.get("phone_number"),
+
+            "to_number":
+                "vapi",
+
+            "started_at":
+                datetime.utcnow().isoformat()
+        },
+
+        transcript=json.dumps(
+            body,
+            indent=2
+        ),
+
+        lead_data=lead_data
     )
 
     return {
