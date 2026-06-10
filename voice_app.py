@@ -354,13 +354,31 @@ Rules:
 
 - Remove filler words
 - Clean up customer name
-- Summarize issue in 1 sentence
+- issue_summary should be 2-6 words
+- Write it like a dispatch board item
+- Examples:
+  - AC Not Cooling
+  - No Heat
+  - Outdoor Unit Failure
+  - Water Leak
+  - New System Estimate
+  - Annual Maintenance
+- Do NOT write complete sentences
+- Do NOT include filler details
 - service_type must be:
   Repair
   Installation
   Maintenance
   Billing
   Other
+
+- availability_summary should be very short
+- Examples:
+  - Thu/Fri Afternoons
+  - Next Week
+  - Flexible
+  - Mornings
+  - Weekends
 
 - urgency must be:
   High
