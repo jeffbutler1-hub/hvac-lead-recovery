@@ -124,6 +124,10 @@ async def save_lead(request: Request):
         )
     )
 
+    classification = classify_lead(
+        body.get("issue", "")
+    )
+
     lead_data = {
 
         "customer_name":
@@ -377,6 +381,8 @@ def classify_lead(issue):
         "not cooling" in issue_lower
         or "no cooling" in issue_lower
         or "not cold" in issue_lower
+        or "blowing warm" in issue_lower
+        or "blowing air but not cold" in issue_lower
         or "no heat" in issue_lower
         or "not heating" in issue_lower
         or "system down" in issue_lower
@@ -385,9 +391,11 @@ def classify_lead(issue):
 
         return {
 
-            classification = classify_lead(
-                body.get("issue", "")
-            )
+            "urgency": "high",
+
+            "call_type": "repair",
+
+            "lead_value": "high"
         }
 
     elif (
@@ -1295,15 +1303,6 @@ Use reasonable operational judgment.
 def get_contractor_by_twilio_number(
     twilio_number
 ):
-
-    try:
-
-        except Exception:
-
-            logger.exception(
-                "READ FAILED"
-            )
-
 
         response = supabase.table(
             "contractors"
