@@ -127,7 +127,7 @@ async def save_lead(request: Request):
     lead_data = {
 
         "customer_name":
-            body.get("customer_name"),
+        body.get("customer_name"),
 
         "phone_number":
             body.get("phone_number"),
@@ -139,13 +139,13 @@ async def save_lead(request: Request):
             body.get("availability"),
 
         "urgency":
-            "medium",
+            classification["urgency"],
 
         "call_type":
-            "repair",
+            classification["call_type"],
 
         "lead_value":
-            "medium",
+            classification["lead_value"],
 
         "recommended_action":
             "callback ASAP"
@@ -368,6 +368,69 @@ def extract_phone_number(text):
 def format_phone_for_speech(phone):
 
     return ", ".join(phone)
+
+def classify_lead(issue):
+
+    issue_lower = issue.lower()
+
+    if (
+        "not cooling" in issue_lower
+        or "no cooling" in issue_lower
+        or "not cold" in issue_lower
+        or "no heat" in issue_lower
+        or "not heating" in issue_lower
+        or "system down" in issue_lower
+        or "not working" in issue_lower
+    ):
+
+        return {
+
+            classification = classify_lead(
+                body.get("issue", "")
+            )
+        }
+
+    elif (
+
+        "install" in issue_lower
+        or "replace" in issue_lower
+        or "new system" in issue_lower
+        or "quote" in issue_lower
+    ):
+
+        return {
+
+            "urgency": "medium",
+
+            "call_type": "installation",
+
+            "lead_value": "high"
+        }
+
+    elif (
+
+        "maintenance" in issue_lower
+        or "tune up" in issue_lower
+        or "inspection" in issue_lower
+    ):
+
+        return {
+
+            "urgency": "low",
+
+            "call_type": "maintenance",
+
+            "lead_value": "medium"
+        }
+
+    return {
+
+        "urgency": "medium",
+
+        "call_type": "repair",
+
+        "lead_value": "medium"
+    }
 # ---------------------------------------------------
 # Incoming Call Webhook
 # ---------------------------------------------------
