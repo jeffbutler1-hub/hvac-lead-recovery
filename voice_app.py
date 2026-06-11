@@ -117,6 +117,12 @@ async def save_lead(request: Request):
 
     logger.info("🎯 VAPI LEAD RECEIVED")
 
+    logger.info("FULL BODY KEYS")
+
+    logger.info(
+        list(body.keys())
+    )
+
     logger.info(
         json.dumps(
             body,
