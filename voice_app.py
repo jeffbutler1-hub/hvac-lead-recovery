@@ -842,10 +842,10 @@ async def handle_response(request: Request):
                 cleaned["availability_summary"],
 
             "urgency":
-                cleaned["urgency"],
+                cleaned["urgency"].lower(),
 
             "call_type":
-                cleaned["service_type"],
+                cleaned["service_type"].lower(),
 
             "lead_value": "medium",
 
