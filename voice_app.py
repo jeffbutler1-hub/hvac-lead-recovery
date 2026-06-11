@@ -148,6 +148,15 @@ async def save_lead(request: Request):
             body.get("availability")
     }
 
+    logger.info("ANSWERS OBJECT")
+
+    logger.info(
+        json.dumps(
+            answers,
+            indent=2
+        )
+    )
+
     cleaned = clean_lead_data(
         answers
     )
