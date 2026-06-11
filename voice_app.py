@@ -115,6 +115,12 @@ async def save_lead(request: Request):
 
     body = await request.json()
 
+    logger.info("RAW CITY")
+    logger.info(repr(body.get("city")))
+
+    logger.info("RAW AVAILABILITY")
+    logger.info(repr(body.get("availability")))
+
     logger.info("🎯 VAPI LEAD RECEIVED")
 
     logger.info("FULL BODY KEYS")
