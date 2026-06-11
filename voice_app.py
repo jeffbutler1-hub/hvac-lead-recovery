@@ -282,7 +282,7 @@ You must include this exact required question:
 
         temperature=0
     )
-    
+
     return completion.choices[0].message.content
 
 def generate_clarification_question(issue_text):
@@ -408,6 +408,18 @@ Return JSON only.
     logger.info("RAW GPT RESPONSE")
 
     logger.info(content)
+
+    content = content.replace(
+        "```json",
+        ""
+    )
+
+    content = content.replace(
+        "```",
+        ""
+    )
+
+    content = content.strip()
 
     return json.loads(content)
 
