@@ -135,6 +135,9 @@ async def save_lead(request: Request):
         "issue":
             body.get("issue"),
 
+        "city":
+            body.get("city"),
+
         "availability":
             body.get("availability")
     }
@@ -349,6 +352,7 @@ Format:
   "customer_name": "...",
   "phone_number": "...",
   "issue_summary": "...",
+  "city": "",
   "availability_summary": "...",
   "service_type": "...",
   "urgency": "..."
@@ -388,6 +392,11 @@ Rules:
   High
   Medium
   Low
+
+- Return city as a clean city name
+- Example: Tulsa
+- Example: Austin
+- Example: Round Rock
 
 Return JSON only.
 """
@@ -822,6 +831,9 @@ async def handle_response(request: Request):
 
             "issue":
                 cleaned["issue_summary"],
+
+            "city":
+                cleaned["city"],
 
             "clarification":
                 session["answers"].get("clarification"),
