@@ -269,16 +269,20 @@ You must include this exact required question:
     completion = client.chat.completions.create(
         model="gpt-4.1-mini",
 
+        response_format={
+            "type": "json_object"
+        },
+
         messages=[
             {
-                "role": "system",
+                "role": "user",
                 "content": prompt
             }
         ],
 
-        temperature=0.6
+        temperature=0
     )
-
+    
     return completion.choices[0].message.content
 
 def generate_clarification_question(issue_text):
@@ -399,9 +403,13 @@ Return JSON only.
         temperature=0
     )
 
-    return json.loads(
-        completion.choices[0].message.content
-    )
+    content = completion.choices[0].message.content
+
+    logger.info("RAW GPT RESPONSE")
+
+    logger.info(content)
+
+    return json.loads(content)
 
 def extract_phone_number(text):
 
