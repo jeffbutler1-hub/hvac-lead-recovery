@@ -116,6 +116,38 @@ async def root():
     }
 
 # ---------------------------------------------------
+# Get Business Info
+# ---------------------------------------------------
+@app.get("/get-business-information")
+async def get_business_information():
+
+    contractor = get_contractor_by_twilio_number(
+        "+18335497973"
+    )
+
+    if not contractor:
+        return {
+            "error": "Contractor not found"
+        }
+
+    return {
+        "business_name":
+            contractor["business_name"],
+
+        "service_area":
+            contractor["service_area"],
+
+        "business_hours":
+            contractor["business_hours"],
+
+        "emergency_service":
+            contractor["emergency_service"],
+
+        "services_offered":
+            contractor["services_offered"]
+    }
+
+# ---------------------------------------------------
 # Vapi Lead Endpoint
 # ---------------------------------------------------
 @app.post("/save-lead")
@@ -212,9 +244,18 @@ async def save_lead(request: Request):
             "callback ASAP"
     }
 
+    contractor = get_contractor_by_twilio_number(
+        DEFAULT_CONTRACTOR_NUMBER
+    )
+
+    contractor_id = None
+
+    if contractor:
+        contractor_id = contractor["id"]
+
     save_call_record(
 
-        contractor_id=None,
+        contractor_id=contractor_id,
 
         metadata={
 
@@ -225,7 +266,7 @@ async def save_lead(request: Request):
                 body.get("phone_number"),
 
             "to_number":
-                "vapi",
+                DEFAULT_CONTRACTOR_NUMBER,
 
             "started_at":
                 datetime.utcnow().isoformat()
