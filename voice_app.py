@@ -18,6 +18,7 @@ import threading
 import logging
 import re
 import uuid
+import resend
 
 from datetime import datetime
 
@@ -43,6 +44,13 @@ logger.info("🚀 HVAC LEAD RECOVERY APP LOADED")
 # ---------------------------------------------------
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
+)
+
+# ---------------------------------------------------
+Resend Client
+# ---------------------------------------------------
+resend.api_key = os.getenv(
+    "RESEND_API_KEY"
 )
 
 # ---------------------------------------------------
@@ -1262,6 +1270,21 @@ def process_call_audio(audio_data, metadata):
                 lead_data=lead_data
             )
 
+            send_email_notification(
+
+                recipient_email=contractor[
+                    "notification_email"
+                ],
+
+                contractor_name=contractor[
+                    "business_name"
+                ],
+
+                metadata=metadata,
+
+                lead_data=lead_data
+            )
+
         else:
 
             logger.warning(
@@ -1551,3 +1574,61 @@ Phone:
     except Exception:
 
         logger.exception("❌ SMS ERROR")
+
+# ---------------------------------------------------
+# Email Notification
+# ---------------------------------------------------
+def send_email_notification(
+    recipient_email,
+    contractor_name,
+    metadata,
+    lead_data
+):
+
+    try:
+
+        email_body = f"""
+New HVAC Lead
+
+Customer:
+{lead_data.get('customer_name', 'Unknown')}
+
+Phone:
+{lead_data.get('phone_number') or metadata.get('from_number')}
+
+Issue:
+{lead_data.get('issue', 'Unknown')}
+
+Type:
+{lead_data.get('call_type', 'Unknown')}
+
+Urgency:
+{lead_data.get('urgency', 'Unknown')}
+
+Lead Value:
+{lead_data.get('lead_value', 'Unknown')}
+
+Action:
+{lead_data.get('recommended_action', 'Unknown')}
+"""
+
+        resend.Emails.send({
+
+            "from":
+                "onboarding@resend.dev"
+
+            "to":
+                recipient_email,
+
+            "subject":
+                f"🚨 New Lead - {contractor_name}",
+
+            "text":
+                email_body
+        })
+
+        logger.info("✅ EMAIL SENT")
+
+    except Exception:
+
+        logger.exception("❌ EMAIL ERROR")
