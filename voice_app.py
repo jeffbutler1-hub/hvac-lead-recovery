@@ -1612,10 +1612,14 @@ Action:
 {lead_data.get('recommended_action', 'Unknown')}
 """
 
+        logger.info(
+            f"EMAIL TO: {recipient_email}"
+        )
+
         resend.Emails.send({
 
             "from":
-                "onboarding@resend.dev"
+                "onboarding@resend.dev",
 
             "to":
                 recipient_email,
