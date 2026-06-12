@@ -213,31 +213,24 @@ async def save_lead(request: Request):
     }
 
     save_call_record(
-
         contractor_id=None,
-
-        metadata={
-
-            "call_sid":
-                f"vapi-{uuid.uuid4()}",
-
-            "from_number":
-                body.get("phone_number"),
-
-            "to_number":
-                "vapi",
-
-            "started_at":
-                datetime.utcnow().isoformat()
-        },
-
-        transcript=json.dumps(
-            body,
-            indent=2
-        ),
-
-        lead_data=lead_data
+        ...
     )
+
+    contractor = get_contractor_by_twilio_number(
+        "+18335497973"
+    )
+
+    if contractor:
+
+        send_notifications(
+            contractor,
+            {
+                "from_number":
+                    body.get("phone_number")
+            },
+            lead_data
+        )
 
     return {
         "success": True
@@ -1216,7 +1209,7 @@ def process_call_audio(audio_data, metadata):
         # Lookup Contractor
         # ---------------------------------------------------
         contractor = get_contractor_by_twilio_number(
-            metadata.get("to_number")
+            "+18335497973"
         )
 
         contractor_id = None
@@ -1255,34 +1248,10 @@ def process_call_audio(audio_data, metadata):
         # ---------------------------------------------------
         if contractor:
 
-            send_sms_notification(
-
-                contractor_number=contractor[
-                    "notification_phone"
-                ],
-
-                contractor_name=contractor[
-                    "business_name"
-                ],
-
-                metadata=metadata,
-
-                lead_data=lead_data
-            )
-
-            send_email_notification(
-
-                recipient_email=contractor[
-                    "notification_email"
-                ],
-
-                contractor_name=contractor[
-                    "business_name"
-                ],
-
-                metadata=metadata,
-
-                lead_data=lead_data
+            send_notifications(
+                contractor,
+                metadata,
+                lead_data
             )
 
         else:
@@ -1518,6 +1487,53 @@ def save_call_record(
     except Exception:
 
         logger.exception("❌ DATABASE SAVE ERROR")
+
+# ---------------------------------------------------
+# Notifications
+# ---------------------------------------------------
+def send_notifications(
+    contractor,
+    metadata,
+    lead_data
+):
+
+    if contractor.get(
+        "notification_email"
+    ):
+
+        send_email_notification(
+
+            recipient_email=contractor[
+                "notification_email"
+            ],
+
+            contractor_name=contractor[
+                "business_name"
+            ],
+
+            metadata=metadata,
+
+            lead_data=lead_data
+        )
+
+    if contractor.get(
+        "notification_phone"
+    ):
+
+        send_sms_notification(
+
+            contractor_number=contractor[
+                "notification_phone"
+            ],
+
+            contractor_name=contractor[
+                "business_name"
+            ],
+
+            metadata=metadata,
+
+            lead_data=lead_data
+        )
 
 # ---------------------------------------------------
 # SMS Notification
