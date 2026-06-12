@@ -53,6 +53,10 @@ resend.api_key = os.getenv(
 "RESEND_API_KEY"
 )
 
+DEFAULT_CONTRACTOR_NUMBER = (
+    "+18335497973"
+)
+
 # ---------------------------------------------------
 # Twilio SMS Client
 # ---------------------------------------------------
@@ -122,7 +126,7 @@ async def root():
 async def get_business_information():
 
     contractor = get_contractor_by_twilio_number(
-        "+18335497973"
+        DEFAULT_CONTRACTOR_NUMBER
     )
 
     if not contractor:
@@ -281,7 +285,7 @@ async def save_lead(request: Request):
     )
 
     contractor = get_contractor_by_twilio_number(
-        "+18335497973"
+        DEFAULT_CONTRACTOR_NUMBER
     )
 
     if contractor:
@@ -1291,7 +1295,7 @@ def process_call_audio(audio_data, metadata):
         # Lookup Contractor
         # ---------------------------------------------------
         contractor = get_contractor_by_twilio_number(
-            "+18335497973"
+            DEFAULT_CONTRACTOR_NUMBER
         )
 
         contractor_id = None
