@@ -213,8 +213,30 @@ async def save_lead(request: Request):
     }
 
     save_call_record(
+
         contractor_id=None,
-        ...
+
+        metadata={
+
+            "call_sid":
+                f"vapi-{uuid.uuid4()}",
+
+            "from_number":
+                body.get("phone_number"),
+
+            "to_number":
+                "vapi",
+
+            "started_at":
+                datetime.utcnow().isoformat()
+        },
+
+        transcript=json.dumps(
+            body,
+            indent=2
+        ),
+
+        lead_data=lead_data
     )
 
     contractor = get_contractor_by_twilio_number(
@@ -223,13 +245,32 @@ async def save_lead(request: Request):
 
     if contractor:
 
-        send_notifications(
-            contractor,
-            {
+        logger.info(
+            f"EMAIL TO: {contractor.get('notification_email')}"
+        )
+
+        send_email_notification(
+
+            recipient_email=contractor[
+                "notification_email"
+            ],
+
+            contractor_name=contractor[
+                "business_name"
+            ],
+
+            metadata={
                 "from_number":
                     body.get("phone_number")
             },
-            lead_data
+
+            lead_data=lead_data
+        )
+
+    else:
+
+        logger.warning(
+            "⚠️ NO CONTRACTOR FOUND"
         )
 
     return {
