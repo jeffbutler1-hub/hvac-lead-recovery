@@ -551,6 +551,31 @@ def classify_lead(issue):
 
     issue_lower = issue.lower()
 
+    emergency_keywords = [
+
+        "emergency",
+        "urgent",
+        "asap",
+        "immediately",
+        "right away",
+        "today",
+        "same day"
+    ]
+
+    if any(
+        keyword in issue_lower
+        for keyword in emergency_keywords
+    ):
+
+        return {
+
+            "urgency": "high",
+
+            "call_type": "repair",
+
+            "lead_value": "high"
+        }
+
     if (
         "not cooling" in issue_lower
         or "no cooling" in issue_lower
