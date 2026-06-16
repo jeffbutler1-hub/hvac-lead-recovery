@@ -1640,6 +1640,22 @@ def save_call_record(
                 "⚠️ NO DATABASE CONNECTED"
             )
 
+            return {
+                "action": "none",
+                "response": None
+            }
+
+    except Exception:
+
+        logger.exception(
+            "❌ DATABASE SAVE ERROR"
+        )
+
+        return {
+            "action": "error",
+            "response": None
+        }
+
 # ---------------------------------------------------
 # Notifications
 # ---------------------------------------------------
