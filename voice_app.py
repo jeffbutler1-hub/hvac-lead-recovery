@@ -245,7 +245,7 @@ async def save_lead(request: Request):
             classification["lead_value"],
 
         "recommended_action":
-            "callback ASAP"
+            "callback ASAP",
 
         "ai_summary":
             lead_summary
