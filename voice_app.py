@@ -288,7 +288,10 @@ async def save_lead(request: Request):
         DEFAULT_CONTRACTOR_NUMBER
     )
 
-    if contractor:
+    if (
+        contractor
+        and save_result["action"] == "insert"
+    ):
 
         logger.info(
             f"EMAIL TO: {contractor.get('notification_email')}"
@@ -310,6 +313,12 @@ async def save_lead(request: Request):
             },
 
             lead_data=lead_data
+        )
+
+    else:
+
+        logger.info(
+            "⏭️ SKIPPING EMAIL - UPDATE RECORD"
         )
 
     else:
@@ -983,7 +992,7 @@ async def handle_response(request: Request):
 
             contractor_id = contractor["id"]
 
-        save_call_record(
+        save_result = save_call_record(
 
             contractor_id=contractor_id,
 
@@ -1009,7 +1018,10 @@ async def handle_response(request: Request):
             lead_data=lead_data
         )
 
-        if contractor:
+        if (
+            contractor
+            and save_result["action"] == "insert"
+        ):
 
             send_sms_notification(
 
