@@ -288,10 +288,13 @@ async def save_lead(request: Request):
         DEFAULT_CONTRACTOR_NUMBER
     )
 
-    if (
-        contractor
-        and save_result["action"] == "insert"
-    ):
+    if not contractor:
+
+        logger.warning(
+            "⚠️ NO CONTRACTOR FOUND"
+        )
+
+    elif save_result["action"] == "insert":
 
         logger.info(
             f"EMAIL TO: {contractor.get('notification_email')}"
@@ -320,16 +323,6 @@ async def save_lead(request: Request):
         logger.info(
             "⏭️ SKIPPING EMAIL - UPDATE RECORD"
         )
-
-    else:
-
-        logger.warning(
-            "⚠️ NO CONTRACTOR FOUND"
-        )
-
-    return {
-        "success": True
-    }
 
 
 # ---------------------------------------------------
