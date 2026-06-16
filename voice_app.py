@@ -246,7 +246,29 @@ async def save_lead(request: Request):
 
         "recommended_action":
             "callback ASAP"
+
+        "ai_summary":
+            lead_summary
     }
+
+    lead_summary = f"""
+    Customer reports:
+    {body.get("issue")}
+
+    Availability:
+    {body.get("availability")}
+
+    Call Type:
+    {classification["call_type"]}
+
+    Urgency:
+
+    {classification["urgency"]}
+
+    Recommended Action:
+
+    Callback ASAP
+    """.strip()
 
     contractor = get_contractor_by_twilio_number(
         DEFAULT_CONTRACTOR_NUMBER
