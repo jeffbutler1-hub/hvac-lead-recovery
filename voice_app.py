@@ -221,27 +221,7 @@ async def save_lead(request: Request):
         body.get("issue", "")
     )
 
-    lead_summary = f"""
-    Customer reports:
-
-    {body.get("issue")}
-
-    Availability:
-
-    {body.get("availability")}
-
-    Call Type:
-
-    {classification["call_type"]}
-
-    Urgency:
-
-    {classification["urgency"]}
-
-    Recommended Action:
-
-    Callback ASAP
-    """.strip()
+    lead_summary = body.get("issue", "")
 
     lead_data = {
 
