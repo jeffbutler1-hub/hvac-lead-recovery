@@ -257,14 +257,14 @@ async def save_lead(request: Request):
     if contractor:
         contractor_id = contractor["id"]
 
-    save_call_record(
+    save_result = save_call_record(
 
         contractor_id=contractor_id,
 
         metadata={
 
             "call_sid":
-                f"vapi-{uuid.uuid4()}",
+                body.get("call_id"),
 
             "from_number":
                 body.get("phone_number"),
@@ -1581,23 +1581,64 @@ def save_call_record(
         # ---------------------------------------------------
         if supabase:
 
-            response = supabase.table(
-                "calls"
-            ).insert(record).execute()
+            existing = (
+                supabase.table("calls")
+                .select("*")
+                .eq(
+                    "call_sid",
+                    record["call_sid"]
+                )
+                .execute()
+            )
 
-            logger.info("✅ SAVED TO SUPABASE")
+            if existing.data:
+
+                action = "update"
+
+                logger.info(
+                    "🔄 UPDATING EXISTING CALL"
+                )
+
+                response = (
+                    supabase.table("calls")
+                    .update(record)
+                    .eq(
+                        "call_sid",
+                        record["call_sid"]
+                    )
+                    .execute()
+                )
+
+            else:
+
+                action = "insert"
+
+                logger.info(
+                    "➕ INSERTING NEW CALL"
+                )
+
+                response = (
+                    supabase.table("calls")
+                    .insert(record)
+                    .execute()
+                )
+
+            logger.info(
+                "✅ SAVED TO SUPABASE"
+            )
 
             logger.info(response)
+
+            return {
+                "action": action,
+                "response": response
+            }
 
         else:
 
             logger.warning(
                 "⚠️ NO DATABASE CONNECTED"
             )
-
-    except Exception:
-
-        logger.exception("❌ DATABASE SAVE ERROR")
 
 # ---------------------------------------------------
 # Notifications
